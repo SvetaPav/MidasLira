@@ -1,84 +1,34 @@
-﻿using Microsoft.Win32;
-using System.Text;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
 using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using System.IO;
-
 
 namespace MidasLira
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class UserInterface : Window
+    public partial class MainWindow : Window
     {
-
-            private readonly DataProcessor _dataProcessor;
-            private readonly Logger _logger;
-
-        public UserInterface()
+        public MainWindow()
         {
             InitializeComponent();
         }
 
-        public UserInterface(DataProcessor processor, Logger logger)
-            {
-                InitializeComponent(); // Инициализация окна WPF
-                _dataProcessor = processor;
-                _logger = logger;
-            }
+        // Обработчик выбора передачи жесткостей плитных фундаментов
+        private void PlateFoundationButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Открываем окно для плитных фундаментов в модальном режиме
+            var plateWindow = new PlateFoundationWindow();
+            plateWindow.Owner = this; // Устанавливаем владельца окна
+            plateWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner; // Центровка окна
+            plateWindow.ShowDialog(); // Модальное открытие окна
+        }
 
-            // Обработчик кнопки "Выбрать файл Excel"
-            private void SelectExcelButton_Click(object sender, RoutedEventArgs e)
-            {
-                OpenFileDialog dialog = new OpenFileDialog();
-                dialog.Filter = "Excel Files (*.xls)|*.xls";
-                if (dialog.ShowDialog() == true)
-                {
-                   ExcelFileTextBox.Text = dialog.FileName;
-                }
-            }
-
-            // Обработчик кнопки "Выбрать файл ЛИРА-САПР"
-            private void SelectLirasaprButton_Click(object sender, RoutedEventArgs e)
-            {
-                OpenFileDialog dialog = new OpenFileDialog();
-                dialog.Filter = "Text Files (*.txt)|*.txt";
-                if (dialog.ShowDialog() == true)
-                {
-                    LirasaprFileTextBox.Text = dialog.FileName;
-                }
-            }
-
-            // Обработчик кнопки "Обработать"
-            private void ProcessButton_Click(object sender, RoutedEventArgs e)
-            {
-                try
-                {
-                    var inputFile = ExcelFileTextBox.Text;
-                    var outputFile = LirasaprFileTextBox.Text;
-
-                    if (_dataProcessor.ProcessFile(inputFile, outputFile))
-                    {
-                        MessageBox.Show("Данные успешно обработаны!");
-                    }
-                    else
-                    {
-                        MessageBox.Show("Ошибка при обработке данных.");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogEvent("Error", $"Ошибка обработки: {ex.Message}");
-                    MessageBox.Show($"Возникла ошибка: {ex.Message}");
-                }
-            }
+        // Обработчик выбора передачи жесткостей свайных фундаментов
+        private void PileFoundationButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Открываем окно-заглушку для свайных фундаментов в модальном режиме
+            var pileWindow = new PileFoundationStubWindow();
+            pileWindow.Owner = this; // Устанавливаем владельца окна
+            pileWindow.WindowStartupLocation = WindowStartupLocation.CenterOwner; // Центровка окна
+            pileWindow.ShowDialog(); // Модальное открытие окна
         }
     }
+}

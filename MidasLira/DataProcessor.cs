@@ -1,42 +1,51 @@
-﻿using System;
+﻿using OfficeOpenXml;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static MidasLira.Mapper;
 
 namespace MidasLira
 {
     public class DataProcessor
     {
-        private readonly Parser _parser;
-        private readonly Calculator _calculator;
         private readonly Writer _writer;
+        private readonly RigidityCalculator _rigidityCalculator;
+        private readonly ExcelReader _excelReader;
 
-        public DataProcessor(Parser parser, Calculator calculator, Writer writer)
+        public DataProcessor(RigidityCalculator rigidityCalculator, Writer writer, ExcelReader excelReader)
         {
-            _parser = parser;
-            _calculator = calculator;
+            _rigidityCalculator = rigidityCalculator;
             _writer = writer;
+            _excelReader = excelReader;
         }
 
         /// <summary>
-        /// Главная точка входа для обработки данных.
+        /// Главный метод обработки данных.
         /// </summary>
         public bool ProcessFile(string excelFilePath, string liraSaprFilePath)
         {
+            List<MidasNodeInfo> midasNodes = new List<MidasNodeInfo>();
+            List<LiraNodeInfo> liraNodes = new List<LiraNodeInfo>();
+            List<MidasElementInfo> midasElements = new List<MidasElementInfo>();
+            List<LiraElementInfo> liraElements = new List<LiraElementInfo>();
+            List<Plaque> plaques = new List<Plaque>();
+
             try
             {
-                // Шаг 1: Парсим файл ЛИРА-САПР
-                var parsedData = _parser.ParseTextFile(liraSaprFilePath);
+                // Шаг 1: Чтение данных из Excel
+                (midasNodes, liraNodes, midasElements, liraElements) = _excelReader.ReadFromExcel(excelFilePath);
 
-                // Шаг 2: Читаем данные из Excel
-                var excelData = ReadFromExcel(excelFilePath);
+                // Шаг 2: Сопоставление узлов и элементов, запись в соответственные классы
+                MapNodesAndElements(midasNodes, liraNodes, midasElements, liraElements);
 
-                // Шаг 3: Передаем данные калькулятору для расчета
-                var calculatedResults = _calculator.CalculateParameters(excelData);
+                // Шаг 3: Расчет коэффициентов постели и жесткостей узлов, запись в соответственные классы
+                plaques = _rigidityCalculator.CalculateNodeRigidities(midasNodes, midasElements);
 
-                // Шаг 4: Записываем узловые жесткости в файл ЛИРА-САПР
-                _writer.WriteNodeAndBeddingData(liraSaprFilePath, calculatedResults.StiffnessValues, calculatedResults.NodeStiffnesses);
+                // Шаг 4: Запись данных в файл ЛИРА-САПР
+                _writer.WriteNodeAndBeddingData(liraSaprFilePath, midasNodes, midasElements, plaques);
 
                 return true;
             }
@@ -45,16 +54,6 @@ namespace MidasLira
                 throw new Exception("Ошибка при обработке данных.", ex);
             }
         }
-
-        /// <summary>
-        /// Читает данные из файла Excel.
-        /// </summary>
-        private object[] ReadFromExcel(string path)
-        {
-            // Тут предполагается реализация чтения данных из Excel,
-            // например, с использованием библиотеки NPOI или EPPlus.
-            // Пока возвращаем заглушку.
-            return new object[] { "Dummy data" };
-        }
     }
 }
+

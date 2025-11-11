@@ -9,27 +9,27 @@ namespace MidasLira
 {
     public class Logger
     {
-        private const string LOG_FILE_NAME = "application.log";
+        private const string LOG_FILE_PATH = "app_log.txt";
 
         /// <summary>
-        /// Регистрирует событие в лог-файл.
+        /// Записывает событие в лог-файл.
         /// </summary>
-        public void LogEvent(string eventType, string message)
+        public void LogEvent(string level, string message)
         {
             try
             {
-                // Формируем строку для записи в лог
-                string logEntry = $"{DateTime.Now}: [{eventType}] {message}";
+                // Формат строки лога: ДатаВремя Уровень Сообщение
+                string logEntry = $"{DateTime.Now}: [{level}] {message}";
 
-                // Добавляем запись в лог-файл
-                using (StreamWriter streamWriter = File.AppendText(LOG_FILE_NAME))
+                // Добавляем запись в конец файла
+                using (StreamWriter writer = File.AppendText(LOG_FILE_PATH))
                 {
-                    streamWriter.WriteLine(logEntry);
+                    writer.WriteLine(logEntry);
                 }
             }
             catch (Exception ex)
             {
-                // Если произошла ошибка при записи лога, выводим сообщение в консоль
+                // В случае ошибки при записи в лог выводим информацию в консоль
                 Console.WriteLine($"Ошибка при записи в лог: {ex.Message}");
             }
         }
