@@ -4,55 +4,129 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Linq;
+using static MidasLira.Mapper;
 
 namespace MidasLira
 {
-    public class Writer
+    public class Writer //переписать
     {
-        private readonly Parser _parser;
+        private readonly PositionFinder _positionFinder;
 
-        public Writer(Parser parser)
+        public Writer(PositionFinder positionFinder)
         {
-            _parser = parser;
+            _positionFinder = positionFinder;
         }
 
         /// <summary>
-        /// Записывает коэффициенты постели и узловые жесткости в файл ЛИРА-САПР.
+        /// Записывает данные в файл ЛИРА-САПР. 
         /// </summary>
-        public void WriteNodeAndBeddingData(string originalFilePath, double[] coefficientsC1, double[] nodeStiffnesses)
+        public void WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes, List<MidasElementInfo> elements, List<Plaque> plaques)
         {
-            // Получаем обе карты позиций
-            var positionsTuple = _parser.ParseTextFile(originalFilePath);
-            var beddingPositions = positionsTuple.Item1;
-            var stiffnessPositions = positionsTuple.Item2;
+            // Находим позиции для вставки данных
+            var positions = _positionFinder.ParseTextFile(filePath);
 
-            // Считываем файл целиком
-            string[] lines = File.ReadAllLines(originalFilePath);
+            // Читаем исходный файл целиком
+            string[] lines = File.ReadAllLines(filePath);
 
-            // Индексы жесткостей и коэффициентов
-            int coefficientIndex = 0;
-            int stiffnessIndex = 0;
+            // Находим максимальное существующее значение жесткости
+            int maxRigidityNumber = FindMaxRigidityNumber(lines);
 
-            // Проходим по каждой строке файла
-            for (int i = 0; i < lines.Length; i++)
+            // Формируем новые строки для вставки
+            var newStiffnessLines = CreateStiffnessSection(nodes);
+            var newNodeMappingLines = CreateElement56Section(nodes, maxRigidityNumber);
+            var newBeddingCoeffLines = CreateBeddingCoefficientSection(elements);
+
+            // Формируем новый файл
+            var newContent = new List<string>(lines);
+
+            // Вставляем данные о жесткостях узлов в раздел (3/)
+            if (positions.Section3EndPosition != -1)
             {
-                // Если данная строка относится к коэффициентам постели
-                if (beddingPositions.TryGetValue(i + 1, out string beddingTemplate))
-                {
-                    string replacementValue = coefficientsC1[coefficientIndex++].ToString();
-                    lines[i] = beddingTemplate.Replace("<COEF_C1>", replacementValue);
-                }
-
-                // Если данная строка относится к узловым жесткостям
-                if (stiffnessPositions.TryGetValue(i + 1, out string stiffnessTemplate))
-                {
-                    string replacementValue = nodeStiffnesses[stiffnessIndex++].ToString();
-                    lines[i] = stiffnessTemplate.Replace("<STIFFNESS>", replacementValue);
-                }
+                newContent.InsertRange(positions.Section3EndPosition, newStiffnessLines);
             }
 
-            // Записываем исправленный файл обратно
-            File.WriteAllLines(originalFilePath, lines);
+            // Вставляем данные о КЭ56 в раздел (1/)
+            if (positions.Section1EndPosition != -1)
+            {
+                newContent.InsertRange(positions.Section1EndPosition, newNodeMappingLines);
+            }
+
+            // Вставляем данные о коэффициентах постели после последней строки файла
+            if (positions.LastLinePosition != -1)
+            {
+                newContent.InsertRange(positions.LastLinePosition + 1, newBeddingCoeffLines);
+            }
+
+            // Записываем изменённый файл
+            File.WriteAllLines(filePath, newContent);
+        }
+
+        // Метод для создания строки с жесткостями 
+        private List<string> CreateStiffnessSection(List<MidasNodeInfo> nodes)  
+        {
+            var content = new List<string>();
+            // Сортировка узлов по полю AppropriateLiraNode.Id
+            var sortedNodes = nodes.OrderBy(node => node.AppropriateLiraNode.Id).ToList();
+
+            foreach (var node in nodes)
+            {
+                content.Add($"{node.AppropriateLiraNode.Id} {node.Plaque.rigidNodes:F4} {node.Plaque.rigidNodes:F4} 0 0 0 0 /");
+            }
+            return content;
+        }
+
+        // Метод для создания строки с КЭ56
+        private List<string> CreateElement56Section(List<MidasNodeInfo> nodes, int RigidityNumber)  
+        {
+            var content = new List<string>();
+            // Сортировка узлов по полю AppropriateLiraNode.Id
+            var sortedNodes = nodes.OrderBy(node => node.AppropriateLiraNode.Id).ToList();
+
+            foreach (var node in nodes)
+            {
+                content.Add($"56 {RigidityNumber} {node.AppropriateLiraNode.Id} /");
+                RigidityNumber++;
+            }
+            return content;
+        }
+
+        // Метод для создания строки с коэффициентами постели
+        private List<string> CreateBeddingCoefficientSection(List<MidasElementInfo> elements)  
+        {
+            var content = new List<string> { "(19/\n" };
+            // Сортировка 'элементов по полю AppropriateLiraElement.Id
+            var sortedElements = elements.OrderBy(element => element.AppropriateLiraElement.Id).ToList();
+
+            foreach (var element in elements)
+            {
+                content.Add($"{element.AppropriateLiraElement.Id} {element.BeddingCoefficient:F3} 0 0 0 /\n");
+            }
+            return content;
+        }
+
+        // Метод для поиска максимального номера жесткости
+        private int FindMaxRigidityNumber(string[] lines)
+        {
+            int maxRigidityNumber = 0;
+            foreach (var line in lines)
+            {
+                if (line.Contains("(3/"))
+                {
+                    foreach (var part in line.Split('/'))
+                    {
+                        if (part.Contains(' '))
+                        {
+                            var values = part.Split(' ');
+                            if (values.Length > 0 && int.TryParse(values[0], out int rigidityNumber))
+                            {
+                                maxRigidityNumber = Math.Max(maxRigidityNumber, rigidityNumber);
+                            }
+                        }
+                    }
+                }
+            }
+            return maxRigidityNumber;
         }
     }
 }
