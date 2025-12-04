@@ -1,0 +1,251 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..e69de29
+--- /dev/null
++++ b/.gitignore
+@@
++# Build artifacts
++bin/
++obj/
++.vs/
++
++# User files
++*.user
++*.suo
++*.db
++*.pdb
++
++# Logs
++*.log
++logs/
++
++# Output binaries
++/MidasLira/*.exe
++/MidasLira/*.dll
++
++# Temporary
++~*
++*.tmp
++Thumbs.db
++*.bak
++
++# Test results
++TestResult*/
++*.trx
++
++# Excel and LIRA temp
++*.xlsx
++*.bak
++*.txt
+
+diff --git a/MidasLira/ExcelReader.cs b/MidasLira/ExcelReader.cs
+index 1234567..89abcde 100644
+--- a/MidasLira/ExcelReader.cs
++++ b/MidasLira/ExcelReader.cs
+@@
+ using OfficeOpenXml;
+ 
+ public class ExcelReader
+ {
+     public List<MidasNodeInfo> Read(string filePath)
+     {
+-         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+-         using var package = new ExcelPackage(new FileInfo(filePath));
+-         var worksheet = package.Workbook.Worksheets["Sheet1"];
+-         var rows = worksheet.Dimension.Rows;
+-         var nodes = new List<MidasNodeInfo>();
+-         for (int row = 2; row <= rows; row++)
+-         {
+-             var node = new MidasNodeInfo
+-             {
+-                 Id = Convert.ToInt32(worksheet.Cells[row, 1].Value),
+-                 X = Convert.ToDouble(worksheet.Cells[row, 2].Value),
+-                 Y = Convert.ToDouble(worksheet.Cells[row, 3].Value),
+-                 Z = Convert.ToDouble(worksheet.Cells[row, 4].Value)
+-             };
+-             nodes.Add(node);
+-         }
+-         return nodes;
++         if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
++             throw new FileNotFoundException("Файл Excel не найден.", filePath);
++
++         ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
++
++         using (var package = new ExcelPackage(new FileInfo(filePath)))
++         {
++             if (package.Workbook.Worksheets.Count == 0)
++                 throw new InvalidOperationException("Файл Excel не содержит листов.");
++
++             var worksheet = package.Workbook.Worksheets.FirstOrDefault(ws =>
++                 ws.Name.Equals("Sheet1", StringComparison.OrdinalIgnoreCase)
++                 || ws.Name.Equals("Nodes", StringComparison.OrdinalIgnoreCase));
++
++             if (worksheet == null || worksheet.Dimension == null)
++                 throw new InvalidOperationException("Ожидаемый лист Excel не найден или пуст.");
++
++             int rows = worksheet.Dimension.Rows;
++             var nodes = new List<MidasNodeInfo>();
++
++             for (int row = 2; row <= rows; row++)
++             {
++                 if (worksheet.Cells[row, 1].Value == null)
++                     continue;
++
++                 var node = new MidasNodeInfo
++                 {
++                     Id = Convert.ToInt32(worksheet.Cells[row, 1].Value),
++                     X = Convert.ToDouble(worksheet.Cells[row, 2].Value ?? 0),
++                     Y = Convert.ToDouble(worksheet.Cells[row, 3].Value ?? 0),
++                     Z = Convert.ToDouble(worksheet.Cells[row, 4].Value ?? 0)
++                 };
++                 nodes.Add(node);
++             }
++
++             return nodes;
++         }
+     }
+ }
+
+diff --git a/MidasLira/Mapper.cs b/MidasLira/Mapper.cs
+index 1111111..2222222 100644
+--- a/MidasLira/Mapper.cs
++++ b/MidasLira/Mapper.cs
+@@
+- var processedElements = new List<int>();
+- foreach (var element in elements)
+- {
+-     if (processedElements.Contains(element.Id)) continue;
+-
+-     var group = new List<MidasElementInfo> { element };
+-     foreach (var other in elements)
+-     {
+-         if (other.Id != element.Id && other.NodeIds.Intersect(element.NodeIds).Any())
+-         {
+-             group.Add(other);
+-             processedElements.Add(other.Id);
+-         }
+-     }
+-     result.Add(group);
+-     processedElements.Add(element.Id);
+- }
++ var processedElements = new HashSet<int>();
++ foreach (var element in elements)
++ {
++     if (!processedElements.Add(element.Id))
++         continue;
++
++     var group = new List<MidasElementInfo> { element };
++
++     foreach (var other in elements)
++     {
++         if (other.Id == element.Id)
++             continue;
++
++         var nodeSet = new HashSet<int>(element.NodeIds);
++         if (other.NodeIds.Any(nodeSet.Contains))
++         {
++             if (processedElements.Add(other.Id))
++                 group.Add(other);
++         }
++     }
++
++     result.Add(group);
++ }
+
+diff --git a/MidasLira/PlateFoundationWindow.xaml.cs b/MidasLira/PlateFoundationWindow.xaml.cs
+index 3333333..4444444 100644
+--- a/MidasLira/PlateFoundationWindow.xaml.cs
++++ b/MidasLira/PlateFoundationWindow.xaml.cs
+@@
+- private void ProcessButton_Click(object sender, RoutedEventArgs e)
+- {
+-     bool success = _dataProcessor.Process(excelPath, liraPath);
+-     if (success)
+-     {
+-         MessageBox.Show("Готово");
+-     }
+-     else
+-     {
+-         MessageBox.Show("Ошибка при обработке");
+-     }
+- }
++ private async void ProcessButton_Click(object sender, RoutedEventArgs e)
++ {
++     try
++     {
++         ProcessButton.IsEnabled = false;
++         ProgressBar.Visibility = Visibility.Visible;
++
++         var result = await Task.Run(() => _dataProcessor.Process(excelPath, liraPath));
++
++         MessageBox.Show(result ? "Обработка завершена" : "Ошибка при обработке", 
++             "MidasLira", MessageBoxButton.OK, 
++             result ? MessageBoxImage.Information : MessageBoxImage.Error);
++     }
++     catch (Exception ex)
++     {
++         MessageBox.Show($"Произошла ошибка: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
++     }
++     finally
++     {
++         ProgressBar.Visibility = Visibility.Collapsed;
++         ProcessButton.IsEnabled = true;
++     }
++ }
+
+diff --git a/.github/workflows/dotnet.yml b/.github/workflows/dotnet.yml
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/.github/workflows/dotnet.yml
+@@
++name: .NET CI
++
++on:
++  push:
++    branches: [ "main" ]
++  pull_request:
++    branches: [ "main" ]
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++
++    steps:
++    - name: Checkout repository
++      uses: actions/checkout@v4
++
++    - name: Setup .NET
++      uses: actions/setup-dotnet@v4
++      with:
++        dotnet-version: '8.0.x'
++
++    - name: Restore dependencies
++      run: dotnet restore ./MidasLira.sln
++
++    - name: Build
++      run: dotnet build ./MidasLira.sln --configuration Release --no-restore
++
++    - name: Run tests
++      if: success()
++      run: |
++        if [ -d "MidasLira.Tests" ]; then
++          dotnet test ./MidasLira.Tests/MidasLira.Tests.csproj --no-build --verbosity normal
++        else
++          echo "No test project found — skipping tests."
++        fi
++
++    - name: Check formatting
++      run: |
++        dotnet tool install -g dotnet-format
++        export PATH="$PATH:/home/runner/.dotnet/tools"
++        dotnet format --verify-no-changes || echo "::warning file=Formatting::Code formatting issues detected"
++
++    - name: Upload build artifacts
++      if: success()
++      uses: actions/upload-artifact@v4
++      with:
++        name: MidasLira_Build
++        path: |
++          MidasLira/bin/Release/
++          !**/*.pdb

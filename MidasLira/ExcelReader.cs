@@ -1,4 +1,4 @@
-﻿using OfficeOpenXml;
+using OfficeOpenXml;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -9,6 +9,12 @@ using static MidasLira.Mapper;
 
 namespace MidasLira
 {
+    public class StressInfo
+    {
+        public int[] NodeIds { get; set; }
+        public double StressValue { get; set; }
+    }
+
     public class ExcelReader
     {
         /// <summary>
@@ -71,9 +77,9 @@ namespace MidasLira
                     elementsMidas.Add(new MidasElementInfo(
                         elementsWorksheet.Cells[row, 1].GetValue<int>(), // Id
                         nodeIds,                                        // Узлы элемента
-                        elementsWorksheet.Cells[row, 6].GetValue<double>(), // Stress
-                        elementsWorksheet.Cells[row, 7].GetValue<double>(), // Displacement
-                        elementsWorksheet.Cells[row, 6].GetValue<double>() / elementsWorksheet.Cells[row, 7].GetValue<double>()));
+                        0, // Stress, заполняется позже
+                        elementsWorksheet.Cells[row, 6].GetValue<double>(), // Displacement
+                        0)); // С1, заполняется позже
                 }
 
                 // Привязываем элементы к узлам
@@ -91,6 +97,11 @@ namespace MidasLira
                         }
                     }
                 }
+
+                // Лист с элементами Lira
+                var elementsLiraWorksheet = package.Workbook.Worksheets["Sheet4"];
+                var elementsLiraRowsCount = elementsLiraWorksheet.Dimension.Rows;
+
 
                 // Читаем элементы Lira
                 var elementsLira = new List<LiraElementInfo>(elementsRowsCount - 1);
@@ -124,6 +135,48 @@ namespace MidasLira
                         {
                             node.Elements.Add(element);
                         }
+                    }
+                }
+
+                // Лист с напряжениями
+                var stressWorksheet = package.Workbook.Worksheets["Sheet5"];
+                var stressRowsCount = stressWorksheet.Dimension.Rows;
+
+                // Читаем напряжения
+                var stresses = new Dictionary<int, StressInfo>();
+                for (int row = 2; row <= stressRowsCount; row++)
+                {
+                    var elementId = stressWorksheet.Cells[row, 1].GetValue<int>(); // Номер объемного элемента
+                    var nodeIds = new[]
+                    {
+                    stressWorksheet.Cells[row, 2].GetValue<int>(), // Первый узел
+                    stressWorksheet.Cells[row, 3].GetValue<int>(), // Второй узел
+                    stressWorksheet.Cells[row, 4].GetValue<int>(), // Третий узел
+                    stressWorksheet.Cells[row, 5].GetValue<int>(), // Четвертый узел
+                    stressWorksheet.Cells[row, 6].GetValue<int>(), // Пятый узел
+                    stressWorksheet.Cells[row, 7].GetValue<int>(), // Шестой узел
+                    stressWorksheet.Cells[row, 8].GetValue<int>(), // Седьмой узел
+                    stressWorksheet.Cells[row, 9].GetValue<int>()  // Восьмой узел
+                }.Where(id => id > 0).ToArray(); // Убираем нулевые значения
+
+                    var stressValue = stressWorksheet.Cells[row, 10].GetValue<double>(); // Значение напряжения
+
+                    stresses[elementId] = new StressInfo
+                    {
+                        NodeIds = nodeIds,
+                        StressValue = stressValue
+                    };
+                }
+
+                // Запись напряжений в элементы Midas
+                foreach (var element in elementsMidas)
+                {
+                    // Находим объемный элемент, содержащий хотя бы 3 общих узла с элементом Midas
+                    var matchingStress = stresses.Values.FirstOrDefault(s => s.NodeIds.Intersect(element.NodeIds).Count() >= 3);
+
+                    if (matchingStress != null)
+                    {
+                        element.Stress = matchingStress.StressValue;
                     }
                 }
 

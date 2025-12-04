@@ -1,0 +1,50 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore ./MidasLira.sln
+
+    - name: Build
+      run: dotnet build ./MidasLira.sln --configuration Release --no-restore
+
+    - name: Run tests
+      if: success()
+      run: |
+        if [ -d "MidasLira.Tests" ]; then
+          dotnet test ./MidasLira.Tests/MidasLira.Tests.csproj --no-build --verbosity normal
+        else
+          echo "No test project found — skipping tests."
+        fi
+
+    - name: Check formatting
+      run: |
+        dotnet tool install -g dotnet-format
+        export PATH="$PATH:/home/runner/.dotnet/tools"
+        dotnet format --verify-no-changes || echo "::warning file=Formatting::Code formatting issues detected"
+
+    - name: Upload build artifacts
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: MidasLira_Build
+        path: |
+          MidasLira/bin/Release/
+          !**/*.pdb
