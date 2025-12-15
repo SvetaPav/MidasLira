@@ -15,6 +15,7 @@ namespace MidasLira
         public double StressValue { get; set; }
     }
 
+    // добавить проверку на количество узлов и элементов
     public class ExcelReader
     {
         /// <summary>
@@ -38,6 +39,7 @@ namespace MidasLira
                         worksheet.Cells[row, 2].GetValue<double>(), // X
                         worksheet.Cells[row, 3].GetValue<double>(), // Y
                         worksheet.Cells[row, 4].GetValue<double>(), // Z
+                        worksheet.Cells[row, 5].GetValue<double>(), // NodeDisplacement
                         new List<MidasElementInfo>()));                 // Пока элементы пусты
                 }
 
@@ -76,9 +78,9 @@ namespace MidasLira
 
                     elementsMidas.Add(new MidasElementInfo(
                         elementsWorksheet.Cells[row, 1].GetValue<int>(), // Id
-                        nodeIds,                                        // Узлы элемента
+                        nodeIds,                                         // Узлы элемента
                         0, // Stress, заполняется позже
-                        elementsWorksheet.Cells[row, 6].GetValue<double>(), // Displacement
+                        elementsWorksheet.Cells[row, 6].GetValue<double>(), // Displacement ПЕРЕПИСАТЬ!!!
                         0)); // С1, заполняется позже
                 }
 
@@ -177,6 +179,7 @@ namespace MidasLira
                     if (matchingStress != null)
                     {
                         element.Stress = matchingStress.StressValue;
+                        element.BeddingCoefficient = element.Stress / element.Displacement;
                     }
                 }
 

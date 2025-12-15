@@ -163,16 +163,18 @@ namespace MidasLira
             public double X { get; }
             public double Y { get; }
             public double Z { get; }
+            public double NodeDisplacement { get; }
             public List<MidasElementInfo> Elements { get; }
             public LiraNodeInfo AppropriateLiraNode { get; set; }  // соответствующий узел в ЛИРА-САПР
             public Plaque Plaque { get; set; } // Номер плиты, к которой принадлежит узел
 
-            public MidasNodeInfo(int id, double x, double y, double z, List<MidasElementInfo> elements)
+            public MidasNodeInfo(int id, double x, double y, double z, double nodeDisplacement, List<MidasElementInfo> elements)
             {
                 Id = id;
                 X = x;
                 Y = y;
                 Z = z;
+                NodeDisplacement = nodeDisplacement;
                 Elements = elements;
                 AppropriateLiraNode = new LiraNodeInfo(); // изначально не знаем соответствующий узел в ЛИРА-САПР
                 Plaque = new Plaque();
@@ -185,7 +187,7 @@ namespace MidasLira
             public int[] NodeIds { get; } // Узлы, принадлежащие элементу
             public double Stress { get; set; } // Напряжение в элементе
             public double Displacement { get; } // Перемещение элемента
-            public double BeddingCoefficient { get; } // Коэффициент постели (C1)
+            public double BeddingCoefficient { get; set; } // Коэффициент постели (C1)
             public int PlankId { get; set; } // Номер плиты, к которой принадлежит элемент
             public LiraElementInfo AppropriateLiraElement { get; set; }
             public Plaque Plaque { get; set; }
