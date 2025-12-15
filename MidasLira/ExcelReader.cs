@@ -76,11 +76,16 @@ namespace MidasLira
                         elementsWorksheet.Cells[row, 5].GetValue<int>()  // Четвертый узел (если элемент четырехугольный)
                     }.Where(id => id > 0).ToArray(); // Убираем нулевые значения, если элемент трехугольный
 
+                    // Вычисляем среднее арифметическое перемещений узлов, принадлежащих элементу
+                    var displacement = nodesMidas.Where(n => nodeIds.Contains(n.Id))
+                                               .Select(n => n.NodeDisplacement)
+                                               .Average();
+
                     elementsMidas.Add(new MidasElementInfo(
                         elementsWorksheet.Cells[row, 1].GetValue<int>(), // Id
                         nodeIds,                                         // Узлы элемента
                         0, // Stress, заполняется позже
-                        elementsWorksheet.Cells[row, 6].GetValue<double>(), // Displacement ПЕРЕПИСАТЬ!!!
+                        displacement, // Displacement
                         0)); // С1, заполняется позже
                 }
 
