@@ -17,9 +17,10 @@ namespace MidasLira
 
         public DataProcessor(RigidityCalculator rigidityCalculator, Writer writer, ExcelReader excelReader)
         {
-            _rigidityCalculator = rigidityCalculator;
-            _writer = writer;
-            _excelReader = excelReader;
+            // ПРОВЕРКА: Внедряемые зависимости не должны быть null
+            _rigidityCalculator = rigidityCalculator ?? throw new ArgumentNullException(nameof(rigidityCalculator));
+            _writer = writer ?? throw new ArgumentNullException(nameof(writer));
+            _excelReader = excelReader ?? throw new ArgumentNullException(nameof(excelReader));
         }
 
         /// <summary>
@@ -27,6 +28,13 @@ namespace MidasLira
         /// </summary>
         public bool ProcessFile(string excelFilePath, string liraSaprFilePath)
         {
+            // ПРОВЕРКА: Входные файлы
+            if (string.IsNullOrWhiteSpace(excelFilePath))
+                throw new ArgumentException("Путь к файлу Excel не может быть пустым.", nameof(excelFilePath));
+            if (string.IsNullOrWhiteSpace(liraSaprFilePath))
+                throw new ArgumentException("Путь к файлу ЛИРА-САПР не может быть пустым.", nameof(liraSaprFilePath));
+
+
             List<MidasNodeInfo> midasNodes = new List<MidasNodeInfo>();
             List<LiraNodeInfo> liraNodes = new List<LiraNodeInfo>();
             List<MidasElementInfo> midasElements = new List<MidasElementInfo>();
@@ -51,7 +59,7 @@ namespace MidasLira
             }
             catch (Exception ex)
             {
-                throw new Exception("Ошибка при обработке данных.", ex);
+                throw new InvalidOperationException($"Ошибка при обработке файлов. Excel: {excelFilePath}, ЛИРА: {liraSaprFilePath}", ex);
             }
         }
     }

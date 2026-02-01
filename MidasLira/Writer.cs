@@ -23,6 +23,15 @@ namespace MidasLira
         /// </summary>
         public void WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes, List<MidasElementInfo> elements, List<Plaque> plaques)
         {
+            // ПРОВЕРКА: Входные данные
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Путь к файлу не может быть пустым.", nameof(filePath));
+            if (!File.Exists(filePath))
+                throw new FileNotFoundException($"Целевой файл не найден: {filePath}");
+            if (nodes == null) throw new ArgumentNullException(nameof(nodes));
+            if (elements == null) throw new ArgumentNullException(nameof(elements));
+            if (plaques == null) throw new ArgumentNullException(nameof(plaques));
+
             // Находим позиции для вставки данных
             var positions = _positionFinder.ParseTextFile(filePath);
 

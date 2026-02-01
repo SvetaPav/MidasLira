@@ -19,6 +19,12 @@ namespace MidasLira
         /// </summary>
         public List<Plaque> CalculateNodeRigidities(List<MidasNodeInfo> nodes, List<MidasElementInfo> elements)
         {
+            // ПРОВЕРКА: Входные коллекции
+            if (nodes == null) throw new ArgumentNullException(nameof(nodes));
+            if (elements == null) throw new ArgumentNullException(nameof(elements));
+            if (nodes.Count == 0) throw new ArgumentException("Список узлов не может быть пустым.", nameof(nodes));
+            if (elements.Count == 0) throw new ArgumentException("Список элементов не может быть пустым.", nameof(elements));
+
             // Группа элементов по плитам
             var plaques = ClusterizeElements(elements, nodes);
 
@@ -50,8 +56,18 @@ namespace MidasLira
         // Метод для расчета площади элемента 
         private double CalculateElementArea(MidasElementInfo element, List<MidasNodeInfo> nodes)
         {
+            // ПРОВЕРКА: Элемент и узлы
+            if (element == null) throw new ArgumentNullException(nameof(element));
+            if (nodes == null) throw new ArgumentNullException(nameof(nodes));
+
             // Получаем координаты узлов элемента
             var points = element.NodeIds.Select(nodeId => nodes.FirstOrDefault(n => n.Id == nodeId)).ToList();
+
+
+            // ПРОВЕРКА: Все ли узлы найдены?
+            if (points.Any(p => p == null))
+                throw new InvalidOperationException($"Для элемента ID={element.Id} не все узлы найдены в общем списке.");
+
 
             switch (points.Count)
             {
@@ -62,7 +78,7 @@ namespace MidasLira
                     return QuadrilateralArea(points[0], points[1], points[2], points[3]);
 
                 default:
-                    throw new ArgumentException("Некорректное количество узлов элемента.");
+                    throw new ArgumentException($"Некорректное количество узлов элемента (ID={element.Id}): {points.Count}. Ожидается 3 или 4.");
             }
         }
 

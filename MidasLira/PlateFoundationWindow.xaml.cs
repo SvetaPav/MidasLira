@@ -34,7 +34,7 @@ namespace MidasLira
         private void SelectExcelButton_Click(object sender, RoutedEventArgs e)
         {
             OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "Excel Files (*.xls)|*.xls";
+            dialog.Filter = "Excel Files (*.xls)|*.xls|Excel Files (*.xlsx)|*.xlsx";
             if (dialog.ShowDialog() == true)
             {
                 ExcelFileTextBox.Text = dialog.FileName;
