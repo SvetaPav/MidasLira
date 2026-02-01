@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using static MidasLira.Mapper;
+using static MidasLira.PositionFinder;
 
 namespace MidasLira
 {
@@ -23,35 +24,39 @@ namespace MidasLira
         /// <summary>
         /// Записывает данные в файл ЛИРА-САПР. 
         /// </summary>
-        public void WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes, List<MidasElementInfo> elements, List<Plaque> plaques)
+        public bool WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes, List<MidasElementInfo> elements, List<Plaque> plaques)
         {
             try 
             {
                 // ВАЛИДАЦИЯ ВХОДНЫХ ДАННЫХ
                 ValidateInputData(filePath, nodes, elements, plaques);
 
-                // Находим позиции для вставки данных
-                var positions = _positionFinder.ParseTextFile(filePath);
-
                 // Чтение файла
                 string[] originalLines = File.ReadAllLines(filePath);
 
                 // Проверка существующих разделов
-                var positions = _positionFinder.ParseTextFile(filePath);
-                ValidateFileSections(positions, originalLines);
+                var parseResult = _positionFinder.ParseTextFile(filePath);
+                ValidateFileSections(parseResult, originalLines);
 
                 // Находим максимальный номер жесткости ВО ВСЁМ разделе (3/)
-                int maxRigidityNumber = FindMaxRigidityNumberInSection(originalLines, positions.Section3StartPosition);
+                int maxRigidityNumber = FindMaxRigidityNumberInSection(
+                      File.ReadAllLines(filePath),
+                       parseResult.Section3Start
+                     );
 
                 // Формируем новые данные
                 var newStiffnessLines = CreateStiffnessSection(nodes, plaques);
-            var newNodeMappingLines = CreateElement56Section(nodes, maxRigidityNumber+1);
-            var newBeddingCoeffLines = CreateBeddingCoefficientSection(elements);
+                var newNodeMappingLines = CreateElement56Section(nodes, maxRigidityNumber+1);
+                var newBeddingCoeffLines = CreateBeddingCoefficientSection(elements);
 
                 // Вставка с проверкой на переполнение разделов
-                var newContent = InsertDataSafely(originalLines.ToList(), positions,
-                                                 newStiffnessLines, newNodeMappingLines, newBeddingCoeffLines);
-
+                var newContent = InsertDataSafely(
+                    originalLines.ToList(),
+                    parseResult,  // Передаем весь результат
+                    newStiffnessLines,
+                    newNodeMappingLines,
+                     newBeddingCoeffLines
+                 );
                 // Создаем backup перед записью
                 CreateBackup(filePath);
 
@@ -87,8 +92,7 @@ namespace MidasLira
                     $"Найдено {nodesWithoutMapping.Count} узлов без сопоставления с ЛИРА-САПР");
         }
 
-        private void ValidateFileSections((int Section1End, int Section3End, int LastLine) positions,
-                                         string[] lines)
+        private void ValidateFileSections(ParseResult positions, string[] lines)
         {
             if (positions.Section1End == -1)
                 throw new InvalidDataException("Не найден раздел (1/) в файле ЛИРА-САПР");
@@ -176,24 +180,27 @@ namespace MidasLira
             return content;
         }
 
-        private List<string> InsertDataSafely(List<string> lines,
-                                             (int Section1End, int Section3End, int LastLine) positions,
-                                             List<string> stiffnessLines,
-                                             List<string> element56Lines,
-                                             List<string> beddingCoeffLines)
+        // Обновленный метод вставки
+        private List<string> InsertDataSafely(
+            List<string> lines,
+            PositionFinder.ParseResult positions,  // Изменили тип
+            List<string> stiffnessLines,
+            List<string> element56Lines,
+            List<string> beddingCoeffLines)
         {
             var result = new List<string>(lines);
 
-            // Вставляем в обратном порядке, чтобы индексы не сбивались
+            // Важно: вставляем в обратном порядке!
+
             // 1. Коэффициенты постели в конец файла
             if (beddingCoeffLines.Any())
                 result.InsertRange(positions.LastLine + 1, beddingCoeffLines);
 
-            // 2. Жесткости в раздел (3/)
+            // 2. Жесткости в раздел (3/) - вставляем ПЕРЕД концом раздела
             if (stiffnessLines.Any())
                 result.InsertRange(positions.Section3End, stiffnessLines);
 
-            // 3. КЭ56 в раздел (1/)
+            // 3. КЭ56 в раздел (1/) - вставляем ПЕРЕД концом раздела
             if (element56Lines.Any())
                 result.InsertRange(positions.Section1End, element56Lines);
 
@@ -208,36 +215,27 @@ namespace MidasLira
         }
 
         // Ищет номера жесткости во всём разделе (3/)
-        private int FindMaxRigidityNumberInSection(string[] lines, int sectionStartIndex)
+        private int FindMaxRigidityNumberInSection(string[] lines, int sectionStart)
         {
-            int maxRigidity = 0;
-            bool inSection3 = false;
+            if (sectionStart <= 0 || sectionStart > lines.Length)
+                return 0;
 
-            for (int i = 0; i < lines.Length; i++)
+            int maxRigidity = 0;
+
+            // Ищем от начала раздела до конца файла или до следующего раздела
+            for (int i = sectionStart; i < lines.Length; i++)
             {
                 string line = lines[i];
 
-                // Начало раздела (3/)
-                if (line.Contains("(3/"))
-                {
-                    inSection3 = true;
-                    continue;
-                }
-
-                // Конец раздела (пустая строка)
-                if (inSection3 && string.IsNullOrWhiteSpace(line))
-                {
+                // Если встретили начало другого раздела - выходим
+                if (i > sectionStart && line.Contains("(/"))
                     break;
-                }
 
-                if (inSection3)
+                // Парсим номер жесткости
+                var parts = line.Split(new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length > 0 && int.TryParse(parts[0], out int rigidityNum))
                 {
-                    // Парсим номер жесткости (первое число в строке)
-                    var parts = line.Split(new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
-                    if (parts.Length > 0 && int.TryParse(parts[0], out int rigidityNum))
-                    {
-                        maxRigidity = Math.Max(maxRigidity, rigidityNum);
-                    }
+                    maxRigidity = Math.Max(maxRigidity, rigidityNum);
                 }
             }
 
