@@ -24,10 +24,33 @@ namespace MidasLira
         public (List<MidasNodeInfo> midasNodes, List<LiraNodeInfo> liraNodes, List<MidasElementInfo> ElementsMidas, List<LiraElementInfo> ElementsLira) ReadFromExcel(string path)
 
         {
+            // ПРОВЕРКА: Путь к файлу
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Путь к файлу Excel не может быть пустым.", nameof(path));
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Файл не найден: {path}");
+
+
             using (var package = new ExcelPackage(new FileInfo(path)))
             {
+                if (package.Workbook.Worksheets.Count == 0)
+                    throw new InvalidOperationException("Файл Excel не содержит ни одного листа.");
+
+                // ПРОВЕРКА: Существование обязательных листов
+                var requiredSheets = new[] { "Sheet1", "Sheet2", "Sheet3", "Sheet4", "Sheet5" };
+                foreach (var sheetName in requiredSheets)
+                {
+                    if (package.Workbook.Worksheets[sheetName] == null)
+                        throw new InvalidOperationException($"В файле отсутствует обязательный лист: '{sheetName}'.");
+                }
+
+
                 // Лист с узлами MIDAS
                 var worksheet = package.Workbook.Worksheets["Sheet1"];
+                // ПРОВЕРКА: Данные на листе
+                if (worksheet.Dimension == null || worksheet.Dimension.Rows < 2)
+                    throw new InvalidDataException("Лист 'Sheet1' не содержит данных для узлов MIDAS.");
+
                 var rowsCount = worksheet.Dimension.Rows;
 
                 // Читаем узлы MIDAS
