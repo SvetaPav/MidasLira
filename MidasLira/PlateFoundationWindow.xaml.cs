@@ -11,74 +11,130 @@ using System.Windows.Navigation;
 using System.Windows.Shapes;
 using System.IO;
 
-
 namespace MidasLira
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
     public partial class PlateFoundationWindow : Window
     {
-
         private readonly DataProcessor _dataProcessor;
         private readonly Logger _logger;
 
         public PlateFoundationWindow()
         {
             InitializeComponent();
-            _dataProcessor = new DataProcessor(new RigidityCalculator(), new Writer(new PositionFinder()), new ExcelReader());
-            _logger = new Logger();
+            _logger = new Logger(enableConsoleOutput: true); // Включаем вывод в консоль для отладки
+            _dataProcessor = new DataProcessor(
+                new RigidityCalculator(),
+                new Writer(new PositionFinder(), _logger),
+                new ExcelReader(),
+                _logger);
         }
 
-        // Обработчик кнопки "Выбрать файл Excel"
         private void SelectExcelButton_Click(object sender, RoutedEventArgs e)
         {
+            _logger.Debug("Кнопка выбора файла Excel нажата");
+
             OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "Excel Files (*.xls)|*.xls|Excel Files (*.xlsx)|*.xlsx";
+            dialog.Filter = "Excel Files (*.xls)|*.xls|Excel Files (*.xlsx)|*.xlsx|All files (*.*)|*.*";
+            dialog.Title = "Выберите файл Excel с данными MIDAS";
+
             if (dialog.ShowDialog() == true)
             {
                 ExcelFileTextBox.Text = dialog.FileName;
+                _logger.Info($"Выбран файл Excel: {dialog.FileName}");
+            }
+            else
+            {
+                _logger.Debug("Выбор файла Excel отменен пользователем");
             }
         }
 
-        // Обработчик кнопки "Выбрать файл ЛИРА-САПР"
         private void SelectLirasaprButton_Click(object sender, RoutedEventArgs e)
         {
+            _logger.Debug("Кнопка выбора файла ЛИРА-САПР нажата");
+
             OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "Text Files (*.txt)|*.txt";
+            dialog.Filter = "Text Files (*.txt)|*.txt|All files (*.*)|*.*";
+            dialog.Title = "Выберите файл ЛИРА-САПР";
+
             if (dialog.ShowDialog() == true)
             {
                 LirasaprFileTextBox.Text = dialog.FileName;
+                _logger.Info($"Выбран файл ЛИРА-САПР: {dialog.FileName}");
+            }
+            else
+            {
+                _logger.Debug("Выбор файла ЛИРА-САПР отменен пользователем");
             }
         }
 
-        // Обработчик кнопки "Обработать"
         private void ProcessButton_Click(object sender, RoutedEventArgs e)
         {
+            _logger.Info("Нажата кнопка 'Обработать'");
+
             try
             {
                 var inputFile = ExcelFileTextBox.Text;
                 var outputFile = LirasaprFileTextBox.Text;
 
-                if (_dataProcessor.ProcessFile(inputFile, outputFile))
+                // ВАЛИДАЦИЯ ВВОДА
+                if (string.IsNullOrEmpty(inputFile))
                 {
-                    MessageBox.Show("Данные успешно обработаны!");
+                    _logger.Warning("Не выбран файл Excel");
+                    MessageBox.Show("Пожалуйста, выберите файл Excel.", "Внимание",
+                                  MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (string.IsNullOrEmpty(outputFile))
+                {
+                    _logger.Warning("Не выбран файл ЛИРА-САПР");
+                    MessageBox.Show("Пожалуйста, выберите файл ЛИРА-САПР.", "Внимание",
+                                  MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                _logger.Info("Начало обработки данных");
+
+                // ОТКЛЮЧАЕМ КНОПКУ НА ВРЕМЯ ОБРАБОТКИ
+                var button = sender as Button;
+                button.IsEnabled = false;
+                Cursor = Cursors.Wait;
+
+                // ЗАПУСК ОБРАБОТКИ
+                bool success = _dataProcessor.ProcessFile(inputFile, outputFile);
+
+                if (success)
+                {
+                    _logger.Info("Обработка завершена успешно");
+                    MessageBox.Show("Данные успешно обработаны и записаны в файл!", "Успех",
+                                  MessageBoxButton.OK, MessageBoxImage.Information);
                 }
                 else
                 {
-                    MessageBox.Show("Ошибка при обработке данных.");
+                    _logger.Error("Обработка завершилась с ошибкой");
+                    MessageBox.Show("Ошибка при обработке данных.", "Ошибка",
+                                  MessageBoxButton.OK, MessageBoxImage.Error);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogEvent("Error", $"Ошибка обработки: {ex.Message}");
-                MessageBox.Show($"Возникла ошибка: {ex.Message}");
+                _logger.Error("Критическая ошибка при обработке", ex);
+                MessageBox.Show($"Возникла ошибка:\n{ex.Message}", "Ошибка",
+                              MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                // ВОССТАНАВЛИВАЕМ ИНТЕРФЕЙС
+                var button = sender as Button;
+                button.IsEnabled = true;
+                Cursor = Cursors.Arrow;
+                _logger.Info("Интерфейс восстановлен");
             }
         }
 
-        // Обработчик события закрытия окна
         private void CloseButton_Click(object sender, RoutedEventArgs e)
         {
+            _logger.Info("Закрытие окна плитных фундаментов");
             this.Close();
         }
     }
