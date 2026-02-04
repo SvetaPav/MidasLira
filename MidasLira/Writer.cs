@@ -3,14 +3,12 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using System.Xml.Linq;
 using static MidasLira.Mapper;
-using static MidasLira.PositionFinder;
+
 
 namespace MidasLira
 {
-    public class Writer 
+    public class Writer
     {
         private readonly PositionFinder _positionFinder;
         private readonly Logger _logger;
@@ -22,48 +20,41 @@ namespace MidasLira
         }
 
         /// <summary>
-        /// Записывает данные в файл ЛИРА-САПР. 
+        /// Главный метод записи данных в файл ЛИРА-САПР
         /// </summary>
-        public bool WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes, List<MidasElementInfo> elements, List<Plaque> plaques)
+        public bool WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes,
+                                           List<MidasElementInfo> elements, List<Plaque> plaques)
         {
-            try 
+            try
             {
-                // ВАЛИДАЦИЯ ВХОДНЫХ ДАННЫХ
+                _logger?.LogEvent("INFO", $"Начало записи данных в файл: {filePath}");
+
+                // ВАЛИДАЦИЯ
                 ValidateInputData(filePath, nodes, elements, plaques);
 
-                // Чтение файла
-                string[] originalLines = File.ReadAllLines(filePath);
-
-                // Проверка существующих разделов
-                var parseResult = _positionFinder.ParseTextFile(filePath);
-                ValidateFileSections(parseResult, originalLines);
-
-                // Находим максимальный номер жесткости ВО ВСЁМ разделе (3/)
-                int maxRigidityNumber = FindMaxRigidityNumberInSection(
-                      File.ReadAllLines(filePath),
-                       parseResult.Section3Start
-                     );
-
-                // Формируем новые данные
-                var newStiffnessLines = CreateStiffnessSection(nodes, plaques);
-                var newNodeMappingLines = CreateElement56Section(nodes, maxRigidityNumber+1);
-                var newBeddingCoeffLines = CreateBeddingCoefficientSection(elements);
-
-                // Вставка с проверкой на переполнение разделов
-                var newContent = InsertDataSafely(
-                    originalLines.ToList(),
-                    parseResult,  // Передаем весь результат
-                    newStiffnessLines,
-                    newNodeMappingLines,
-                     newBeddingCoeffLines
-                 );
-                // Создаем backup перед записью
+                // СОЗДАЕМ РЕЗЕРВНУЮ КОПИЮ
                 CreateBackup(filePath);
 
-                // Запись
-                File.WriteAllLines(filePath, newContent);
+                // АНАЛИЗИРУЕМ СТРУКТУРУ ФАЙЛА
+                var parseResult = _positionFinder.ParseTextFile(filePath);
+                _logger?.LogEvent("INFO", "Структура файла проанализирована");
 
-                _logger?.LogEvent("INFO", $"Данные успешно записаны в {filePath}");
+                // ЧИТАЕМ ВЕСЬ ФАЙЛ
+                var lines = File.ReadAllLines(filePath).ToList();
+
+                // 1. ЗАПИСЫВАЕМ ЖЕСТКОСТИ УЗЛОВ В РАЗДЕЛ (3/)
+                WriteStiffnessesToFile(ref lines, nodes, plaques, parseResult);
+
+                // 2. ЗАПИСЫВАЕМ ЭЛЕМЕНТЫ КЭ56 В РАЗДЕЛ (1/)
+                WriteElement56ToFile(ref lines, nodes, parseResult);
+
+                // 3. ЗАПИСЫВАЕМ КОЭФФИЦИЕНТЫ ПОСТЕЛИ В РАЗДЕЛ (19/)
+                WriteBeddingCoefficientsToFile(ref lines, elements, parseResult);
+
+                // ЗАПИСЫВАЕМ ОБНОВЛЕННЫЙ ФАЙЛ
+                File.WriteAllLines(filePath, lines, Encoding.UTF8);
+
+                _logger?.LogEvent("SUCCESS", $"Все данные успешно записаны в {filePath}");
                 return true;
             }
             catch (Exception ex)
@@ -73,8 +64,254 @@ namespace MidasLira
             }
         }
 
+        // ==================== ЗАПИСЬ ЖЕСТКОСТЕЙ В РАЗДЕЛ (3/) ====================
+
+        private void WriteStiffnessesToFile(ref List<string> lines, List<MidasNodeInfo> nodes,
+                                           List<Plaque> plaques, PositionFinder.ParseResult parseResult)
+        {
+            _logger?.LogEvent("INFO", "Запись жесткостей узлов в раздел (3/)");
+
+            // ФОРМИРУЕМ СТРОКИ С ЖЕСТКОСТЯМИ
+            var stiffnessLines = CreateStiffnessLines(nodes, plaques);
+
+            if (!stiffnessLines.Any())
+            {
+                _logger?.LogEvent("WARNING", "Нет данных о жесткостях для записи");
+                return;
+            }
+
+            // ЕСЛИ РАЗДЕЛА (3/) НЕТ - СОЗДАЕМ ЕГО ПЕРЕД РАЗДЕЛОМ (17/)
+            if (parseResult.Section3Start == -1)
+            {
+                _logger?.LogEvent("INFO", "Раздел (3/) не найден, создаем новый перед разделом (17/)");
+                CreateNewSection3(ref lines, stiffnessLines, parseResult);
+            }
+            else
+            {
+                // ВСТАВЛЯЕМ ЖЕСТКОСТИ ПОСЛЕ МАТЕРИАЛОВ, ПЕРЕД ЗАКРЫВАЮЩЕЙ СКОБКОЙ
+                InsertStiffnessesIntoSection3(ref lines, stiffnessLines, parseResult);
+            }
+
+            _logger?.LogEvent("INFO", $"Записано {stiffnessLines.Count} жесткостей узлов");
+        }
+
+        private List<string> CreateStiffnessLines(List<MidasNodeInfo> nodes, List<Plaque> plaques)
+        {
+            var stiffnessLines = new List<string>();
+            int nextRigidityNumber = 1;
+
+            // СОРТИРУЕМ УЗЛЫ ПО ID ЛИРА-САПР
+            var sortedNodes = nodes
+                .Where(n => n.AppropriateLiraNode.Id != 0)
+                .OrderBy(n => n.AppropriateLiraNode.Id)
+                .ToList();
+
+            _logger?.LogEvent("DEBUG", $"Найдено {sortedNodes.Count} узлов с сопоставлением для жесткостей");
+
+            foreach (var node in sortedNodes)
+            {
+                var plaque = plaques.FirstOrDefault(p => p.Nodes.Contains(node));
+                double rigidity = plaque?.rigidNodes ?? 0;
+
+                if (rigidity > 0)
+                {
+                    // ФОРМАТ: "номер_жесткости значение значение 0 0 0 0 /"
+                    string line = $"{nextRigidityNumber} {rigidity:F4} {rigidity:F4} 0 0 0 0 /";
+                    stiffnessLines.Add(line);
+
+                    node.RigidityNumber = nextRigidityNumber;
+                    nextRigidityNumber++;
+
+                    _logger?.LogEvent("DEBUG",
+                        $"Узел ЛИРА ID={node.AppropriateLiraNode.Id}: жесткость={rigidity:F4}, номер={node.RigidityNumber}");
+                }
+            }
+
+            return stiffnessLines;
+        }
+
+        private void CreateNewSection3(ref List<string> lines, List<string> stiffnessLines,
+                                      PositionFinder.ParseResult parseResult)
+        {
+            // СОЗДАЕМ НОВЫЙ РАЗДЕЛ (3/) ПЕРЕД РАЗДЕЛОМ (17/)
+            int insertPosition = parseResult.Section17Start - 1;
+
+            var newSection = new List<string>
+            {
+                "", // Пустая строка перед разделом
+                "( 3/",
+                "1 S0 1.05541e+006 20 40/", // Дефолтный материал
+                " 0 RO 0.2/",
+                " 0 Mu 0.2/"
+            };
+
+            newSection.AddRange(stiffnessLines);
+            newSection.Add(" )");
+            newSection.Add(""); // Пустая строка после раздела
+
+            lines.InsertRange(insertPosition, newSection);
+        }
+
+        private void InsertStiffnessesIntoSection3(ref List<string> lines, List<string> stiffnessLines,
+                                                  PositionFinder.ParseResult parseResult)
+        {
+            // ВСТАВЛЯЕМ ПОСЛЕ ПОСЛЕДНЕЙ СТРОКИ МАТЕРИАЛОВ, ПЕРЕД ")"
+            int insertPosition = parseResult.Section3LastMaterialLine;
+            if (insertPosition <= parseResult.Section3Start)
+                insertPosition = parseResult.Section3End - 1;
+
+            lines.InsertRange(insertPosition, stiffnessLines);
+        }
+
+        // ==================== ЗАПИСЬ ЭЛЕМЕНТОВ КЭ56 В РАЗДЕЛ (1/) ====================
+
+        private void WriteElement56ToFile(ref List<string> lines, List<MidasNodeInfo> nodes,
+                                         PositionFinder.ParseResult parseResult)
+        {
+            _logger?.LogEvent("INFO", "Запись элементов КЭ56 в раздел (1/)");
+
+            var element56Lines = CreateElement56Lines(nodes);
+
+            if (!element56Lines.Any())
+            {
+                _logger?.LogEvent("WARNING", "Нет данных КЭ56 для записи");
+                return;
+            }
+
+            // РАЗДЕЛ (1/) ДОЛЖЕН БЫТЬ (это обязательный раздел)
+            if (parseResult.Section1Start == -1)
+                throw new InvalidOperationException("В файле отсутствует обязательный раздел (1/)");
+
+            // ВСТАВЛЯЕМ КЭ56 ПОСЛЕ СУЩЕСТВУЮЩИХ ЭЛЕМЕНТОВ, ПЕРЕД ")"
+            InsertElement56IntoSection1(ref lines, element56Lines, parseResult);
+
+            _logger?.LogEvent("INFO", $"Записано {element56Lines.Count} элементов КЭ56");
+        }
+
+        private List<string> CreateElement56Lines(List<MidasNodeInfo> nodes)
+        {
+            var element56Lines = new List<string>();
+
+            // ФИЛЬТРУЕМ УЗЛЫ С НОМЕРОМ ЖЕСТКОСТИ
+            var validNodes = nodes
+                .Where(n => n.AppropriateLiraNode.Id != 0 && n.RigidityNumber > 0)
+                .OrderBy(n => n.AppropriateLiraNode.Id)
+                .ToList();
+
+            _logger?.LogEvent("DEBUG", $"Найдено {validNodes.Count} узлов для создания КЭ56");
+
+            foreach (var node in validNodes)
+            {
+                // ФОРМАТ: "56 номер_жесткости номер_узла /"
+                string line = $"56 {node.RigidityNumber} {node.AppropriateLiraNode.Id} /";
+                element56Lines.Add(line);
+
+                _logger?.LogEvent("DEBUG",
+                    $"КЭ56: узел={node.AppropriateLiraNode.Id}, жесткость={node.RigidityNumber}");
+            }
+
+            return element56Lines;
+        }
+
+        private void InsertElement56IntoSection1(ref List<string> lines, List<string> element56Lines,
+                                                PositionFinder.ParseResult parseResult)
+        {
+            // ВСТАВЛЯЕМ ПОСЛЕ ПОСЛЕДНЕГО ЭЛЕМЕНТА, ПЕРЕД ")"
+            int insertPosition = parseResult.Section1LastElementLine;
+            if (insertPosition <= parseResult.Section1Start)
+                insertPosition = parseResult.Section1End - 1;
+
+            lines.InsertRange(insertPosition, element56Lines);
+        }
+
+        // ==================== ЗАПИСЬ КОЭФФИЦИЕНТОВ ПОСТЕЛИ В РАЗДЕЛ (19/) ====================
+
+        private void WriteBeddingCoefficientsToFile(ref List<string> lines, List<MidasElementInfo> elements,
+                                                   PositionFinder.ParseResult parseResult)
+        {
+            _logger?.LogEvent("INFO", "Запись коэффициентов постели в раздел (19/)");
+
+            var coefficientLines = CreateCoefficientLines(elements);
+
+            if (!coefficientLines.Any())
+            {
+                _logger?.LogEvent("WARNING", "Нет коэффициентов постели для записи");
+                return;
+            }
+
+            // ОПРЕДЕЛЯЕМ, КУДА ВСТАВЛЯТЬ
+            int insertPosition = _positionFinder.FindPositionForSection19(parseResult);
+
+            if (parseResult.Section19Start == -1)
+            {
+                // СОЗДАЕМ НОВЫЙ РАЗДЕЛ (19/) ПОСЛЕ РАЗДЕЛА (17/)
+                CreateNewSection19(ref lines, coefficientLines, insertPosition);
+            }
+            else
+            {
+                // ДОБАВЛЯЕМ К СУЩЕСТВУЮЩЕМУ РАЗДЕЛУ (19/)
+                InsertCoefficientsIntoSection19(ref lines, coefficientLines, insertPosition);
+            }
+
+            _logger?.LogEvent("INFO", $"Записано {coefficientLines.Count} коэффициентов постели");
+        }
+
+        private List<string> CreateCoefficientLines(List<MidasElementInfo> elements)
+        {
+            var coefficientLines = new List<string>();
+
+            // ФИЛЬТРУЕМ ЭЛЕМЕНТЫ С КОЭФФИЦИЕНТАМИ
+            var validElements = elements
+                .Where(e => e.AppropriateLiraElement.Id != 0 && e.BeddingCoefficient > 0)
+                .OrderBy(e => e.AppropriateLiraElement.Id)
+                .ToList();
+
+            _logger?.LogEvent("DEBUG", $"Найдено {validElements.Count} элементов с коэффициентами постели");
+
+            foreach (var element in validElements)
+            {
+                // ФОРМАТ: "номер_элемента коэффициент 0 0 0 /"
+                string line = $"{element.AppropriateLiraElement.Id} {element.BeddingCoefficient:F3} 0 0 0 /";
+                coefficientLines.Add(line);
+
+                _logger?.LogEvent("DEBUG",
+                    $"Коэффициент постели: элемент={element.AppropriateLiraElement.Id}, C1={element.BeddingCoefficient:F3}");
+            }
+
+            return coefficientLines;
+        }
+
+        private void CreateNewSection19(ref List<string> lines, List<string> coefficientLines, int insertPosition)
+        {
+            _logger?.LogEvent("INFO", $"Создаем новый раздел (19/) на позиции {insertPosition}");
+
+            // СОЗДАЕМ НОВЫЙ РАЗДЕЛ (19/) ПОСЛЕ РАЗДЕЛА (17/)
+            var newSection = new List<string>
+            {
+                "", // Пустая строка перед разделом
+                "( 19/"
+            };
+
+            newSection.AddRange(coefficientLines);
+            newSection.Add(" )");
+            newSection.Add(""); // Пустая строка после раздела
+
+            // ВСТАВЛЯЕМ НОВЫЙ РАЗДЕЛ
+            lines.InsertRange(insertPosition, newSection);
+        }
+
+        private void InsertCoefficientsIntoSection19(ref List<string> lines, List<string> coefficientLines, int insertPosition)
+        {
+            _logger?.LogEvent("INFO", $"Добавляем коэффициенты в существующий раздел (19/) на позиции {insertPosition}");
+
+            // ВСТАВЛЯЕМ НОВЫЕ КОЭФФИЦИЕНТЫ В СУЩЕСТВУЮЩИЙ РАЗДЕЛ (19/)
+            lines.InsertRange(insertPosition, coefficientLines);
+        }
+
+        // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+
         private void ValidateInputData(string filePath, List<MidasNodeInfo> nodes,
-                                    List<MidasElementInfo> elements, List<Plaque> plaques)
+                                      List<MidasElementInfo> elements, List<Plaque> plaques)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("Путь к файлу не может быть пустым.");
@@ -85,161 +322,74 @@ namespace MidasLira
             if (nodes == null || nodes.Count == 0)
                 throw new ArgumentException("Список узлов пуст.");
 
-            // Проверка, что у всех узлов есть сопоставленные узлы ЛИРА-САПР
-            var nodesWithoutMapping = nodes.Where(n => n.AppropriateLiraNode.Id == 0).ToList();
-            if (nodesWithoutMapping.Count > 0)
-                throw new InvalidOperationException(
-                    $"Найдено {nodesWithoutMapping.Count} узлов без сопоставления с ЛИРА-САПР");
-        }
+            if (elements == null || elements.Count == 0)
+                throw new ArgumentException("Список элементов пуст.");
 
-        private void ValidateFileSections(ParseResult positions, string[] lines)
-        {
-            if (positions.Section1End == -1)
-                throw new InvalidDataException("Не найден раздел (1/) в файле ЛИРА-САПР");
+            // Проверяем сопоставления
+            int nodesWithMapping = nodes.Count(n => n.AppropriateLiraNode.Id != 0);
+            int elementsWithMapping = elements.Count(e => e.AppropriateLiraElement.Id != 0);
 
-            if (positions.Section3End == -1)
-                throw new InvalidDataException("Не найден раздел (3/) в файле ЛИРА-САПР");
-
-            // Проверка, что разделы не слишком заполнены
-            CheckSectionCapacity(lines, positions.Section1End, "Раздел (1/)");
-            CheckSectionCapacity(lines, positions.Section3End, "Раздел (3/)");
-        }
-
-        private void CheckSectionCapacity(string[] lines, int sectionEnd, string sectionName)
-        {
-            // Если до конца файла меньше 5 строк - предупреждение
-            if (lines.Length - sectionEnd < 5)
-            {
-                _logger?.LogEvent("WARNING",
-                    $"{sectionName} близок к заполнению. Осталось {lines.Length - sectionEnd} строк.");
-            }
-        }
-
-
-        // Метод для создания строки с жесткостями 
-        private List<string> CreateStiffnessSection(List<MidasNodeInfo> nodes, List<Plaque> plaques)
-        {
-            var content = new List<string>();
-
-            // СОРТИРОВКА по ID узла ЛИРА-САПР
-            var sortedNodes = nodes
-                .Where(n => n.AppropriateLiraNode.Id != 0) // Только с сопоставлением
-                .OrderBy(n => n.AppropriateLiraNode.Id)
-                .ToList();
-
-            foreach (var node in sortedNodes)
-            {
-                // Находим плиту для узла
-                var plaque = plaques.FirstOrDefault(p => p.Nodes.Contains(node));
-                double rigidity = plaque?.rigidNodes ?? 0;
-
-                content.Add($"{node.AppropriateLiraNode.Id} {rigidity:F4} {rigidity:F4} 0 0 0 0 /");
-            }
-
-            return content;
-        }
-
-        // Метод для создания строки с КЭ56
-        private List<string> CreateElement56Section(List<MidasNodeInfo> nodes, int startRigidityNumber)
-        {
-            var content = new List<string>();
-            int currentRigidityNumber = startRigidityNumber;
-
-            // СОРТИРОВКА
-            var sortedNodes = nodes
-                .Where(n => n.AppropriateLiraNode.Id != 0)
-                .OrderBy(n => n.AppropriateLiraNode.Id)
-                .ToList();
-
-            foreach (var node in sortedNodes)
-            {
-                content.Add($"56 {currentRigidityNumber} {node.AppropriateLiraNode.Id} /");
-                currentRigidityNumber++;
-            }
-
-            return content;
-        }
-
-        // Метод для создания строки с коэффициентами постели
-        private List<string> CreateBeddingCoefficientSection(List<MidasElementInfo> elements)
-        {
-            var content = new List<string> { "(19/" };
-
-            // СОРТИРОВКА и фильтрация
-            var sortedElements = elements
-                .Where(e => e.AppropriateLiraElement.Id != 0 && e.BeddingCoefficient > 0)
-                .OrderBy(e => e.AppropriateLiraElement.Id)
-                .ToList();
-
-            foreach (var element in sortedElements)
-            {
-                content.Add($"{element.AppropriateLiraElement.Id} {element.BeddingCoefficient:F3} 0 0 0 /");
-            }
-
-            content.Add(""); // Пустая строка в конце раздела
-            return content;
-        }
-
-        // Обновленный метод вставки
-        private List<string> InsertDataSafely(
-            List<string> lines,
-            PositionFinder.ParseResult positions,  // Изменили тип
-            List<string> stiffnessLines,
-            List<string> element56Lines,
-            List<string> beddingCoeffLines)
-        {
-            var result = new List<string>(lines);
-
-            // Важно: вставляем в обратном порядке!
-
-            // 1. Коэффициенты постели в конец файла
-            if (beddingCoeffLines.Any())
-                result.InsertRange(positions.LastLine + 1, beddingCoeffLines);
-
-            // 2. Жесткости в раздел (3/) - вставляем ПЕРЕД концом раздела
-            if (stiffnessLines.Any())
-                result.InsertRange(positions.Section3End, stiffnessLines);
-
-            // 3. КЭ56 в раздел (1/) - вставляем ПЕРЕД концом раздела
-            if (element56Lines.Any())
-                result.InsertRange(positions.Section1End, element56Lines);
-
-            return result;
+            _logger?.LogEvent("DEBUG",
+                $"Узлов с сопоставлением: {nodesWithMapping}/{nodes.Count}, " +
+                $"Элементов с сопоставлением: {elementsWithMapping}/{elements.Count}");
         }
 
         private void CreateBackup(string originalFilePath)
         {
-            string backupPath = $"{originalFilePath}.backup_{DateTime.Now:yyyyMMdd_HHmmss}";
-            File.Copy(originalFilePath, backupPath, true);
-            _logger?.LogEvent("INFO", $"Создан backup: {backupPath}");
+            try
+            {
+                string backupPath = $"{originalFilePath}.backup_{DateTime.Now:yyyyMMdd_HHmmss}";
+                File.Copy(originalFilePath, backupPath, true);
+                _logger?.LogEvent("INFO", $"Создан backup: {backupPath}");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogEvent("WARNING", $"Не удалось создать backup: {ex.Message}");
+            }
         }
 
-        // Ищет номера жесткости во всём разделе (3/)
-        private int FindMaxRigidityNumberInSection(string[] lines, int sectionStart)
+        /// <summary>
+        /// Генерирует отчет о записанных данных
+        /// </summary>
+        public string GenerateReport(List<MidasNodeInfo> nodes, List<MidasElementInfo> elements)
         {
-            if (sectionStart <= 0 || sectionStart > lines.Length)
-                return 0;
+            var report = new StringBuilder();
+            report.AppendLine("=== ОТЧЕТ О ЗАПИСИ ДАННЫХ В ЛИРА-САПР ===");
+            report.AppendLine($"Дата: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+            report.AppendLine();
 
-            int maxRigidity = 0;
+            // Узлы и жесткости
+            var nodesWithRigidity = nodes.Where(n => n.RigidityNumber > 0).ToList();
+            report.AppendLine("1. УЗЛЫ И ЖЕСТКОСТИ:");
+            report.AppendLine($"   Всего узлов: {nodes.Count}");
+            report.AppendLine($"   Узлов с жесткостями: {nodesWithRigidity.Count}");
+            report.AppendLine($"   Узлов без сопоставления: {nodes.Count(n => n.AppropriateLiraNode.Id == 0)}");
 
-            // Ищем от начала раздела до конца файла или до следующего раздела
-            for (int i = sectionStart; i < lines.Length; i++)
+            if (nodesWithRigidity.Any())
             {
-                string line = lines[i];
-
-                // Если встретили начало другого раздела - выходим
-                if (i > sectionStart && line.Contains("(/"))
-                    break;
-
-                // Парсим номер жесткости
-                var parts = line.Split(new[] { ' ', '/' }, StringSplitOptions.RemoveEmptyEntries);
-                if (parts.Length > 0 && int.TryParse(parts[0], out int rigidityNum))
-                {
-                    maxRigidity = Math.Max(maxRigidity, rigidityNum);
-                }
+                report.AppendLine($"   Номера жесткостей: {nodesWithRigidity.Min(n => n.RigidityNumber)} - " +
+                                 $"{nodesWithRigidity.Max(n => n.RigidityNumber)}");
+                report.AppendLine($"   Диапазон значений жесткостей: " +
+                                 $"{nodesWithRigidity.Min(n => n.Plaque?.rigidNodes ?? 0):F4} - " +
+                                 $"{nodesWithRigidity.Max(n => n.Plaque?.rigidNodes ?? 0):F4}");
             }
 
-            return maxRigidity;
+            // Элементы и коэффициенты
+            var elementsWithCoefficient = elements.Where(e => e.BeddingCoefficient > 0).ToList();
+            report.AppendLine();
+            report.AppendLine("2. ЭЛЕМЕНТЫ И КОЭФФИЦИЕНТЫ ПОСТЕЛИ:");
+            report.AppendLine($"   Всего элементов: {elements.Count}");
+            report.AppendLine($"   Элементов с коэффициентами: {elementsWithCoefficient.Count}");
+            report.AppendLine($"   Элементов без сопоставления: {elements.Count(e => e.AppropriateLiraElement.Id == 0)}");
+
+            if (elementsWithCoefficient.Any())
+            {
+                report.AppendLine($"   Диапазон коэффициентов: {elementsWithCoefficient.Min(e => e.BeddingCoefficient):F3} - " +
+                                 $"{elementsWithCoefficient.Max(e => e.BeddingCoefficient):F3}");
+                report.AppendLine($"   Средний коэффициент: {elementsWithCoefficient.Average(e => e.BeddingCoefficient):F3}");
+            }
+
+            return report.ToString();
         }
     }
 }

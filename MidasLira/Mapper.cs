@@ -167,6 +167,7 @@ namespace MidasLira
             public List<MidasElementInfo> Elements { get; }
             public LiraNodeInfo AppropriateLiraNode { get; set; }  // соответствующий узел в ЛИРА-САПР
             public Plaque Plaque { get; set; } // Номер плиты, к которой принадлежит узел
+            public int RigidityNumber { get; set; } // Номер жесткости для записи в файл
 
             public MidasNodeInfo(int id, double x, double y, double z, double nodeDisplacement, List<MidasElementInfo> elements)
             {
@@ -178,6 +179,7 @@ namespace MidasLira
                 Elements = elements;
                 AppropriateLiraNode = new LiraNodeInfo(); // изначально не знаем соответствующий узел в ЛИРА-САПР
                 Plaque = new Plaque();
+                RigidityNumber = 0; // Изначально не задан
             }
         }
 
