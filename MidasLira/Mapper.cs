@@ -29,7 +29,7 @@ namespace MidasLira
                     l.Y == midasNode.Y &&
                     l.Z == midasNode.Z);
 
-                if (matchingLiraNode.Id != 0)
+                if (!matchingLiraNode.Equals(default(LiraNodeInfo))) // Исправленная проверка
                 {
                     midasNode.AppropriateLiraNode = matchingLiraNode;
                 }
@@ -44,7 +44,7 @@ namespace MidasLira
                                     .Select(midNodeId =>
                                     {
                                         var correspondingNode = midasNodes.FirstOrDefault(md => md.Id == midNodeId);
-                                        if (correspondingNode != null && correspondingNode.AppropriateLiraNode.Id != 0)
+                                        if (correspondingNode != null && correspondingNode.AppropriateLiraNode.Equals(default(LiraNodeInfo)))
                                             return correspondingNode.AppropriateLiraNode.Id;
                                         return 0;
                                     })
@@ -56,7 +56,7 @@ namespace MidasLira
                 var matchingLiraElement = liraElements.FirstOrDefault(le =>
                     le.NodeIds.OrderBy(id => id).SequenceEqual(matchedNodeIds));
 
-                if (matchingLiraElement.Id != 0) // Проверяем, что элемент реально найден
+                if (!matchingLiraElement.Equals(default(LiraElementInfo))) // Исправленная проверка // Проверяем, что элемент реально найден
                 {
                     midasElement.AppropriateLiraElement = matchingLiraElement;
                 }

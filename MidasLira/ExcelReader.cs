@@ -134,20 +134,20 @@ namespace MidasLira
 
 
                 // Читаем элементы Lira
-                var elementsLira = new List<LiraElementInfo>(elementsRowsCount - 1);
-                for (int row = 2; row <= elementsRowsCount; row++)
+                var elementsLira = new List<LiraElementInfo>(elementsLiraRowsCount - 1);
+                for (int row = 2; row <= elementsLiraRowsCount; row++)
                 {
                     // Узлы хранятся в соседних ячейках (например, в колонках B, C, D)
                     var nodeIds = new[]
                     {
-                        elementsWorksheet.Cells[row, 2].GetValue<int>(), // Первый узел
-                        elementsWorksheet.Cells[row, 3].GetValue<int>(), // Второй узел
-                        elementsWorksheet.Cells[row, 4].GetValue<int>(), // Третий узел
-                        elementsWorksheet.Cells[row, 5].GetValue<int>()  // Четвертый узел (если элемент четырехугольный)
+                        elementsLiraWorksheet.Cells[row, 2].GetValue<int>(), // Первый узел
+                        elementsLiraWorksheet.Cells[row, 3].GetValue<int>(), // Второй узел
+                        elementsLiraWorksheet.Cells[row, 4].GetValue<int>(), // Третий узел
+                        elementsLiraWorksheet.Cells[row, 5].GetValue<int>()  // Четвертый узел (если элемент четырехугольный)
                     }.Where(id => id > 0).ToArray(); // Убираем нулевые значения, если элемент трехугольный
 
                     elementsLira.Add(new LiraElementInfo(
-                        elementsWorksheet.Cells[row, 1].GetValue<int>(), // Id
+                        elementsLiraWorksheet.Cells[row, 1].GetValue<int>(), // Id
                         nodeIds)                 // Узлы элемента
                         );
                 }
