@@ -34,7 +34,7 @@ namespace MidasLira
             _logger.Debug("Кнопка выбора файла Excel нажата");
 
             OpenFileDialog dialog = new OpenFileDialog();
-            dialog.Filter = "Excel Files (*.xls)|*.xls|Excel Files (*.xlsx)|*.xlsx|All files (*.*)|*.*";
+            dialog.Filter = "Excel Files (*.xlsx)|*.xlsx|Excel Files (*.xls)|*.xls|All files (*.*)|*.*";
             dialog.Title = "Выберите файл Excel с данными MIDAS";
 
             if (dialog.ShowDialog() == true)
