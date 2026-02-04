@@ -5,7 +5,6 @@ using System.Linq;
 using System.Text;
 using static MidasLira.Mapper;
 
-
 namespace MidasLira
 {
     public class Writer
@@ -16,7 +15,7 @@ namespace MidasLira
         public Writer(PositionFinder positionFinder, Logger logger = null)
         {
             _positionFinder = positionFinder ?? throw new ArgumentNullException(nameof(positionFinder));
-            _logger = logger;
+            _logger = logger ?? new Logger(); // Создаем логгер по умолчанию если не передан
         }
 
         /// <summary>
@@ -25,43 +24,55 @@ namespace MidasLira
         public bool WriteNodeAndBeddingData(string filePath, List<MidasNodeInfo> nodes,
                                            List<MidasElementInfo> elements, List<Plaque> plaques)
         {
-            try
+            return _logger.LogExecutionTime("Запись данных в ЛИРА-САПР", () =>
             {
-                _logger?.LogEvent("INFO", $"Начало записи данных в файл: {filePath}");
+                try
+                {
+                    _logger.Info($"Начало записи данных в файл: {filePath}");
 
-                // ВАЛИДАЦИЯ
-                ValidateInputData(filePath, nodes, elements, plaques);
+                    // ВАЛИДАЦИЯ
+                    ValidateInputData(filePath, nodes, elements, plaques);
 
-                // СОЗДАЕМ РЕЗЕРВНУЮ КОПИЮ
-                CreateBackup(filePath);
+                    // СОЗДАЕМ РЕЗЕРВНУЮ КОПИЮ
+                    CreateBackup(filePath);
 
-                // АНАЛИЗИРУЕМ СТРУКТУРУ ФАЙЛА
-                var parseResult = _positionFinder.ParseTextFile(filePath);
-                _logger?.LogEvent("INFO", "Структура файла проанализирована");
+                    // АНАЛИЗИРУЕМ СТРУКТУРУ ФАЙЛА
+                    _logger.StartOperation("Анализ структуры файла ЛИРА-САПР");
+                    var parseResult = _positionFinder.ParseTextFile(filePath);
+                    _logger.Info($"Структура файла проанализирована успешно");
+                    _logger.EndOperation("Анализ структуры файла ЛИРА-САПР");
 
-                // ЧИТАЕМ ВЕСЬ ФАЙЛ
-                var lines = File.ReadAllLines(filePath).ToList();
+                    // ЧИТАЕМ ВЕСЬ ФАЙЛ
+                    var lines = File.ReadAllLines(filePath).ToList();
 
-                // 1. ЗАПИСЫВАЕМ ЖЕСТКОСТИ УЗЛОВ В РАЗДЕЛ (3/)
-                WriteStiffnessesToFile(ref lines, nodes, plaques, parseResult);
+                    // 1. ЗАПИСЫВАЕМ ЖЕСТКОСТИ УЗЛОВ В РАЗДЕЛ (3/)
+                    WriteStiffnessesToFile(ref lines, nodes, plaques, parseResult);
 
-                // 2. ЗАПИСЫВАЕМ ЭЛЕМЕНТЫ КЭ56 В РАЗДЕЛ (1/)
-                WriteElement56ToFile(ref lines, nodes, parseResult);
+                    // 2. ЗАПИСЫВАЕМ ЭЛЕМЕНТЫ КЭ56 В РАЗДЕЛ (1/)
+                    WriteElement56ToFile(ref lines, nodes, parseResult);
 
-                // 3. ЗАПИСЫВАЕМ КОЭФФИЦИЕНТЫ ПОСТЕЛИ В РАЗДЕЛ (19/)
-                WriteBeddingCoefficientsToFile(ref lines, elements, parseResult);
+                    // 3. ЗАПИСЫВАЕМ КОЭФФИЦИЕНТЫ ПОСТЕЛИ В РАЗДЕЛ (19/)
+                    WriteBeddingCoefficientsToFile(ref lines, elements, parseResult);
 
-                // ЗАПИСЫВАЕМ ОБНОВЛЕННЫЙ ФАЙЛ
-                File.WriteAllLines(filePath, lines, Encoding.UTF8);
+                    // ЗАПИСЫВАЕМ ОБНОВЛЕННЫЙ ФАЙЛ
+                    _logger.StartOperation("Запись обновленного файла на диск");
+                    File.WriteAllLines(filePath, lines, Encoding.UTF8);
+                    _logger.Info($"Файл успешно сохранен: {filePath}, строк: {lines.Count}");
+                    _logger.EndOperation("Запись обновленного файла на диск");
 
-                _logger?.LogEvent("SUCCESS", $"Все данные успешно записаны в {filePath}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                _logger?.LogEvent("ERROR", $"Ошибка записи в {filePath}: {ex.Message}");
-                throw new InvalidOperationException($"Ошибка записи в файл ЛИРА-САПР: {ex.Message}", ex);
-            }
+                    // ГЕНЕРИРУЕМ ОТЧЕТ
+                    var report = GenerateReport(nodes, elements);
+                    _logger.Info($"Отчет о записи:\n{report}");
+
+                    _logger.Info($"Все данные успешно записаны в {filePath}");
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    _logger.Error($"Ошибка записи в файл ЛИРА-САПР", ex);
+                    throw new InvalidOperationException($"Ошибка записи в файл ЛИРА-САПР: {ex.Message}", ex);
+                }
+            });
         }
 
         // ==================== ЗАПИСЬ ЖЕСТКОСТЕЙ В РАЗДЕЛ (3/) ====================
@@ -69,21 +80,22 @@ namespace MidasLira
         private void WriteStiffnessesToFile(ref List<string> lines, List<MidasNodeInfo> nodes,
                                            List<Plaque> plaques, PositionFinder.ParseResult parseResult)
         {
-            _logger?.LogEvent("INFO", "Запись жесткостей узлов в раздел (3/)");
+            _logger.StartOperation("Запись жесткостей узлов в раздел (3/)");
 
             // ФОРМИРУЕМ СТРОКИ С ЖЕСТКОСТЯМИ
             var stiffnessLines = CreateStiffnessLines(nodes, plaques);
 
             if (!stiffnessLines.Any())
             {
-                _logger?.LogEvent("WARNING", "Нет данных о жесткостях для записи");
+                _logger.Warning("Нет данных о жесткостях для записи");
+                _logger.EndOperation("Запись жесткостей узлов в раздел (3/)");
                 return;
             }
 
             // ЕСЛИ РАЗДЕЛА (3/) НЕТ - СОЗДАЕМ ЕГО ПЕРЕД РАЗДЕЛОМ (17/)
             if (parseResult.Section3Start == -1)
             {
-                _logger?.LogEvent("INFO", "Раздел (3/) не найден, создаем новый перед разделом (17/)");
+                _logger.Info("Раздел (3/) не найден, создаем новый перед разделом (17/)");
                 CreateNewSection3(ref lines, stiffnessLines, parseResult);
             }
             else
@@ -92,7 +104,8 @@ namespace MidasLira
                 InsertStiffnessesIntoSection3(ref lines, stiffnessLines, parseResult);
             }
 
-            _logger?.LogEvent("INFO", $"Записано {stiffnessLines.Count} жесткостей узлов");
+            _logger.Info($"Записано {stiffnessLines.Count} жесткостей узлов");
+            _logger.EndOperation("Запись жесткостей узлов в раздел (3/)");
         }
 
         private List<string> CreateStiffnessLines(List<MidasNodeInfo> nodes, List<Plaque> plaques)
@@ -106,7 +119,7 @@ namespace MidasLira
                 .OrderBy(n => n.AppropriateLiraNode.Id)
                 .ToList();
 
-            _logger?.LogEvent("DEBUG", $"Найдено {sortedNodes.Count} узлов с сопоставлением для жесткостей");
+            _logger.Debug($"Найдено {sortedNodes.Count} узлов с сопоставлением для жесткостей");
 
             foreach (var node in sortedNodes)
             {
@@ -122,8 +135,7 @@ namespace MidasLira
                     node.RigidityNumber = nextRigidityNumber;
                     nextRigidityNumber++;
 
-                    _logger?.LogEvent("DEBUG",
-                        $"Узел ЛИРА ID={node.AppropriateLiraNode.Id}: жесткость={rigidity:F4}, номер={node.RigidityNumber}");
+                    _logger.Debug($"Узел ЛИРА ID={node.AppropriateLiraNode.Id}: жесткость={rigidity:F4}, номер={node.RigidityNumber}");
                 }
             }
 
@@ -150,6 +162,8 @@ namespace MidasLira
             newSection.Add(""); // Пустая строка после раздела
 
             lines.InsertRange(insertPosition, newSection);
+
+            _logger.Debug($"Создан новый раздел (3/) на позиции {insertPosition}");
         }
 
         private void InsertStiffnessesIntoSection3(ref List<string> lines, List<string> stiffnessLines,
@@ -161,6 +175,7 @@ namespace MidasLira
                 insertPosition = parseResult.Section3End - 1;
 
             lines.InsertRange(insertPosition, stiffnessLines);
+            _logger.Debug($"Добавлено {stiffnessLines.Count} жесткостей в раздел (3/) на позицию {insertPosition}");
         }
 
         // ==================== ЗАПИСЬ ЭЛЕМЕНТОВ КЭ56 В РАЗДЕЛ (1/) ====================
@@ -168,24 +183,29 @@ namespace MidasLira
         private void WriteElement56ToFile(ref List<string> lines, List<MidasNodeInfo> nodes,
                                          PositionFinder.ParseResult parseResult)
         {
-            _logger?.LogEvent("INFO", "Запись элементов КЭ56 в раздел (1/)");
+            _logger.StartOperation("Запись элементов КЭ56 в раздел (1/)");
 
             var element56Lines = CreateElement56Lines(nodes);
 
             if (!element56Lines.Any())
             {
-                _logger?.LogEvent("WARNING", "Нет данных КЭ56 для записи");
+                _logger.Warning("Нет данных КЭ56 для записи");
+                _logger.EndOperation("Запись элементов КЭ56 в раздел (1/)");
                 return;
             }
 
             // РАЗДЕЛ (1/) ДОЛЖЕН БЫТЬ (это обязательный раздел)
             if (parseResult.Section1Start == -1)
+            {
+                _logger.Error("В файле отсутствует обязательный раздел (1/)");
                 throw new InvalidOperationException("В файле отсутствует обязательный раздел (1/)");
+            }
 
             // ВСТАВЛЯЕМ КЭ56 ПОСЛЕ СУЩЕСТВУЮЩИХ ЭЛЕМЕНТОВ, ПЕРЕД ")"
             InsertElement56IntoSection1(ref lines, element56Lines, parseResult);
 
-            _logger?.LogEvent("INFO", $"Записано {element56Lines.Count} элементов КЭ56");
+            _logger.Info($"Записано {element56Lines.Count} элементов КЭ56");
+            _logger.EndOperation("Запись элементов КЭ56 в раздел (1/)");
         }
 
         private List<string> CreateElement56Lines(List<MidasNodeInfo> nodes)
@@ -198,7 +218,7 @@ namespace MidasLira
                 .OrderBy(n => n.AppropriateLiraNode.Id)
                 .ToList();
 
-            _logger?.LogEvent("DEBUG", $"Найдено {validNodes.Count} узлов для создания КЭ56");
+            _logger.Debug($"Найдено {validNodes.Count} узлов для создания КЭ56");
 
             foreach (var node in validNodes)
             {
@@ -206,8 +226,7 @@ namespace MidasLira
                 string line = $"56 {node.RigidityNumber} {node.AppropriateLiraNode.Id} /";
                 element56Lines.Add(line);
 
-                _logger?.LogEvent("DEBUG",
-                    $"КЭ56: узел={node.AppropriateLiraNode.Id}, жесткость={node.RigidityNumber}");
+                _logger.Debug($"КЭ56: узел={node.AppropriateLiraNode.Id}, жесткость={node.RigidityNumber}");
             }
 
             return element56Lines;
@@ -222,6 +241,7 @@ namespace MidasLira
                 insertPosition = parseResult.Section1End - 1;
 
             lines.InsertRange(insertPosition, element56Lines);
+            _logger.Debug($"Добавлено {element56Lines.Count} элементов КЭ56 в раздел (1/) на позицию {insertPosition}");
         }
 
         // ==================== ЗАПИСЬ КОЭФФИЦИЕНТОВ ПОСТЕЛИ В РАЗДЕЛ (19/) ====================
@@ -229,13 +249,14 @@ namespace MidasLira
         private void WriteBeddingCoefficientsToFile(ref List<string> lines, List<MidasElementInfo> elements,
                                                    PositionFinder.ParseResult parseResult)
         {
-            _logger?.LogEvent("INFO", "Запись коэффициентов постели в раздел (19/)");
+            _logger.StartOperation("Запись коэффициентов постели в раздел (19/)");
 
             var coefficientLines = CreateCoefficientLines(elements);
 
             if (!coefficientLines.Any())
             {
-                _logger?.LogEvent("WARNING", "Нет коэффициентов постели для записи");
+                _logger.Warning("Нет коэффициентов постели для записи");
+                _logger.EndOperation("Запись коэффициентов постели в раздел (19/)");
                 return;
             }
 
@@ -253,7 +274,8 @@ namespace MidasLira
                 InsertCoefficientsIntoSection19(ref lines, coefficientLines, insertPosition);
             }
 
-            _logger?.LogEvent("INFO", $"Записано {coefficientLines.Count} коэффициентов постели");
+            _logger.Info($"Записано {coefficientLines.Count} коэффициентов постели");
+            _logger.EndOperation("Запись коэффициентов постели в раздел (19/)");
         }
 
         private List<string> CreateCoefficientLines(List<MidasElementInfo> elements)
@@ -266,7 +288,7 @@ namespace MidasLira
                 .OrderBy(e => e.AppropriateLiraElement.Id)
                 .ToList();
 
-            _logger?.LogEvent("DEBUG", $"Найдено {validElements.Count} элементов с коэффициентами постели");
+            _logger.Debug($"Найдено {validElements.Count} элементов с коэффициентами постели");
 
             foreach (var element in validElements)
             {
@@ -274,8 +296,7 @@ namespace MidasLira
                 string line = $"{element.AppropriateLiraElement.Id} {element.BeddingCoefficient:F3} 0 0 0 /";
                 coefficientLines.Add(line);
 
-                _logger?.LogEvent("DEBUG",
-                    $"Коэффициент постели: элемент={element.AppropriateLiraElement.Id}, C1={element.BeddingCoefficient:F3}");
+                _logger.Debug($"Коэффициент постели: элемент={element.AppropriateLiraElement.Id}, C1={element.BeddingCoefficient:F3}");
             }
 
             return coefficientLines;
@@ -283,7 +304,7 @@ namespace MidasLira
 
         private void CreateNewSection19(ref List<string> lines, List<string> coefficientLines, int insertPosition)
         {
-            _logger?.LogEvent("INFO", $"Создаем новый раздел (19/) на позиции {insertPosition}");
+            _logger.Info($"Создаем новый раздел (19/) на позиции {insertPosition}");
 
             // СОЗДАЕМ НОВЫЙ РАЗДЕЛ (19/) ПОСЛЕ РАЗДЕЛА (17/)
             var newSection = new List<string>
@@ -298,14 +319,16 @@ namespace MidasLira
 
             // ВСТАВЛЯЕМ НОВЫЙ РАЗДЕЛ
             lines.InsertRange(insertPosition, newSection);
+            _logger.Debug($"Создан раздел (19/) с {coefficientLines.Count} коэффициентами");
         }
 
         private void InsertCoefficientsIntoSection19(ref List<string> lines, List<string> coefficientLines, int insertPosition)
         {
-            _logger?.LogEvent("INFO", $"Добавляем коэффициенты в существующий раздел (19/) на позиции {insertPosition}");
+            _logger.Info($"Добавляем коэффициенты в существующий раздел (19/) на позиции {insertPosition}");
 
             // ВСТАВЛЯЕМ НОВЫЕ КОЭФФИЦИЕНТЫ В СУЩЕСТВУЮЩИЙ РАЗДЕЛ (19/)
             lines.InsertRange(insertPosition, coefficientLines);
+            _logger.Debug($"Добавлено {coefficientLines.Count} коэффициентов в раздел (19/)");
         }
 
         // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
@@ -313,25 +336,45 @@ namespace MidasLira
         private void ValidateInputData(string filePath, List<MidasNodeInfo> nodes,
                                       List<MidasElementInfo> elements, List<Plaque> plaques)
         {
+            _logger.StartOperation("Валидация входных данных");
+
             if (string.IsNullOrWhiteSpace(filePath))
+            {
+                _logger.Error("Путь к файлу не может быть пустым");
                 throw new ArgumentException("Путь к файлу не может быть пустым.");
+            }
 
             if (!File.Exists(filePath))
+            {
+                _logger.Error($"Файл не найден: {filePath}");
                 throw new FileNotFoundException($"Файл не найден: {filePath}");
+            }
 
             if (nodes == null || nodes.Count == 0)
+            {
+                _logger.Error("Список узлов пуст");
                 throw new ArgumentException("Список узлов пуст.");
+            }
 
             if (elements == null || elements.Count == 0)
+            {
+                _logger.Error("Список элементов пуст");
                 throw new ArgumentException("Список элементов пуст.");
+            }
 
             // Проверяем сопоставления
             int nodesWithMapping = nodes.Count(n => n.AppropriateLiraNode.Id != 0);
             int elementsWithMapping = elements.Count(e => e.AppropriateLiraElement.Id != 0);
 
-            _logger?.LogEvent("DEBUG",
-                $"Узлов с сопоставлением: {nodesWithMapping}/{nodes.Count}, " +
-                $"Элементов с сопоставлением: {elementsWithMapping}/{elements.Count}");
+            _logger.Info($"Узлов с сопоставлением: {nodesWithMapping}/{nodes.Count}");
+            _logger.Info($"Элементов с сопоставлением: {elementsWithMapping}/{elements.Count}");
+
+            if (nodesWithMapping == 0)
+            {
+                _logger.Warning("Нет сопоставленных узлов - возможно ошибка в данных");
+            }
+
+            _logger.EndOperation("Валидация входных данных");
         }
 
         private void CreateBackup(string originalFilePath)
@@ -340,11 +383,11 @@ namespace MidasLira
             {
                 string backupPath = $"{originalFilePath}.backup_{DateTime.Now:yyyyMMdd_HHmmss}";
                 File.Copy(originalFilePath, backupPath, true);
-                _logger?.LogEvent("INFO", $"Создан backup: {backupPath}");
+                _logger.Info($"Создан backup: {backupPath}");
             }
             catch (Exception ex)
             {
-                _logger?.LogEvent("WARNING", $"Не удалось создать backup: {ex.Message}");
+                _logger.Warning($"Не удалось создать backup: {ex.Message}");
             }
         }
 
