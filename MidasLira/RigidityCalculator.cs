@@ -40,7 +40,7 @@ namespace MidasLira
                 var area = GetPlaqueArea(plaque.Elements, nodes);
 
                 // Жесткость плиты (общая для всех узлов плиты)
-                plaque.rigidNodes = (area * avgC1 * 0.7) / plaque.Elements.Count;
+                plaque.RigidNodes = (area * avgC1 * 0.7) / plaque.Elements.Count;
             }
             return plaques;
         }
@@ -60,13 +60,19 @@ namespace MidasLira
             if (element == null) throw new ArgumentNullException(nameof(element));
             if (nodes == null) throw new ArgumentNullException(nameof(nodes));
 
+            // Создаем словарь для быстрого поиска узлов по ID
+            var NodeDictionary = nodes.ToDictionary (n => n.Id, n => n);
+
             // Получаем координаты узлов элемента
-            var points = element.NodeIds.Select(nodeId => nodes.FirstOrDefault(n => n.Id == nodeId)).ToList();
-
-
-            // ПРОВЕРКА: Все ли узлы найдены?
-            if (points.Any(p => p == null))
-                throw new InvalidOperationException($"Для элемента ID={element.Id} не все узлы найдены в общем списке.");
+            var points = new List<MidasNodeInfo>();
+            foreach (var nodeID in element.NodeIds)
+            {
+                if (!NodeDictionary.TryGetValue(nodeID, out var node))
+                {
+                    throw new InvalidOperationException($"Для элемента ID={element.Id} узел {nodeID} не найден в общем списке.");
+                }
+                points.Add(node);
+            }
 
 
             switch (points.Count)
@@ -78,13 +84,16 @@ namespace MidasLira
                     return QuadrilateralArea(points[0], points[1], points[2], points[3]);
 
                 default:
-                    throw new ArgumentException($"Некорректное количество узлов элемента (ID={element.Id}): {points.Count}. Ожидается 3 или 4.");
+                    throw new ArgumentException($"Некорректное количество узлов элемента ID={element.Id}: {points.Count}. Ожидается 3 или 4.");
             }
         }
 
         // Метод для расчета площади треугольника
         private double TriangleArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C)
         {
+            if (A == null || B == null || C == null)
+                throw new ArgumentNullException("Все параметры треугольника должны быть не null");
+
             double sideA = Distance(A, B);
             double sideB = Distance(B, C);
             double sideC = Distance(C, A);
@@ -96,6 +105,9 @@ namespace MidasLira
         // Метод для расчета площади четырехугольника (деление на два треугольника)
         private double QuadrilateralArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C, MidasNodeInfo D)
         {
+            if (A == null || B == null || C == null)
+                throw new ArgumentNullException("Все параметры четырехугольника должны быть не null");
+
             return TriangleArea(A, B, C) + TriangleArea(A, C, D);
         }
 

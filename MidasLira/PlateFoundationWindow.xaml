@@ -138,7 +138,7 @@
             <Button Content="..." Click="SelectLirasaprButton_Click"/>
 
             <!-- Обработать -->
-            <Button Content="Обработать" Click="ProcessButton_Click"/>
+            <Button x:Name="ProcessButton" Content="Обработать" Click="ProcessButton_Click"/>
 
             <!-- Статус -->
             <TextBlock Text="{Binding StatusMessage}"/>
