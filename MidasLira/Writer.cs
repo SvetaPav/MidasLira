@@ -12,7 +12,7 @@ namespace MidasLira
         private readonly PositionFinder _positionFinder;
         private readonly Logger _logger;
 
-        public Writer(PositionFinder positionFinder, Logger logger = null)
+        public Writer(PositionFinder positionFinder, Logger? logger = null)
         {
             _positionFinder = positionFinder ?? throw new ArgumentNullException(nameof(positionFinder));
             _logger = logger ?? new Logger(); // Создаем логгер по умолчанию если не передан
@@ -85,7 +85,7 @@ namespace MidasLira
             // ФОРМИРУЕМ СТРОКИ С ЖЕСТКОСТЯМИ
             var stiffnessLines = CreateStiffnessLines(nodes, plaques);
 
-            if (!stiffnessLines.Any())
+            if (stiffnessLines.Count == 0)
             {
                 _logger.Warning("Нет данных о жесткостях для записи");
                 _logger.EndOperation("Запись жесткостей узлов в раздел (3/)");
@@ -124,7 +124,7 @@ namespace MidasLira
             foreach (var node in sortedNodes)
             {
                 var plaque = plaques.FirstOrDefault(p => p.Nodes.Contains(node));
-                double rigidity = plaque?.rigidNodes ?? 0;
+                double rigidity = plaque?.RigidNodes ?? 0;
 
                 if (rigidity > 0)
                 {
@@ -187,7 +187,7 @@ namespace MidasLira
 
             var element56Lines = CreateElement56Lines(nodes);
 
-            if (!element56Lines.Any())
+            if (element56Lines.Count == 0)
             {
                 _logger.Warning("Нет данных КЭ56 для записи");
                 _logger.EndOperation("Запись элементов КЭ56 в раздел (1/)");
@@ -253,7 +253,7 @@ namespace MidasLira
 
             var coefficientLines = CreateCoefficientLines(elements);
 
-            if (!coefficientLines.Any())
+            if (coefficientLines.Count == 0)
             {
                 _logger.Warning("Нет коэффициентов постели для записи");
                 _logger.EndOperation("Запись коэффициентов постели в раздел (19/)");
@@ -408,13 +408,13 @@ namespace MidasLira
             report.AppendLine($"   Узлов с жесткостями: {nodesWithRigidity.Count}");
             report.AppendLine($"   Узлов без сопоставления: {nodes.Count(n => n.AppropriateLiraNode.Id == 0)}");
 
-            if (nodesWithRigidity.Any())
+            if (nodesWithRigidity.Count > 0)
             {
                 report.AppendLine($"   Номера жесткостей: {nodesWithRigidity.Min(n => n.RigidityNumber)} - " +
                                  $"{nodesWithRigidity.Max(n => n.RigidityNumber)}");
                 report.AppendLine($"   Диапазон значений жесткостей: " +
-                                 $"{nodesWithRigidity.Min(n => n.Plaque?.rigidNodes ?? 0):F4} - " +
-                                 $"{nodesWithRigidity.Max(n => n.Plaque?.rigidNodes ?? 0):F4}");
+                                 $"{nodesWithRigidity.Min(n => n.Plaque?.RigidNodes ?? 0):F4} - " +
+                                 $"{nodesWithRigidity.Max(n => n.Plaque?.RigidNodes ?? 0):F4}");
             }
 
             // Элементы и коэффициенты
@@ -425,7 +425,7 @@ namespace MidasLira
             report.AppendLine($"   Элементов с коэффициентами: {elementsWithCoefficient.Count}");
             report.AppendLine($"   Элементов без сопоставления: {elements.Count(e => e.AppropriateLiraElement.Id == 0)}");
 
-            if (elementsWithCoefficient.Any())
+            if (elementsWithCoefficient.Count > 0)
             {
                 report.AppendLine($"   Диапазон коэффициентов: {elementsWithCoefficient.Min(e => e.BeddingCoefficient):F3} - " +
                                  $"{elementsWithCoefficient.Max(e => e.BeddingCoefficient):F3}");

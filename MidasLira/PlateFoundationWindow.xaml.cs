@@ -25,7 +25,6 @@ namespace MidasLira
             _dataProcessor = new DataProcessor(
                 new RigidityCalculator(),
                 new Writer(new PositionFinder(), _logger),
-                new ExcelReader(),
                 _logger);
         }
 
@@ -33,7 +32,7 @@ namespace MidasLira
         {
             _logger.Debug("Кнопка выбора файла Excel нажата");
 
-            OpenFileDialog dialog = new OpenFileDialog();
+            OpenFileDialog dialog = new ();
             dialog.Filter = "Excel Files (*.xlsx)|*.xlsx|Excel Files (*.xls)|*.xls|All files (*.*)|*.*";
             dialog.Title = "Выберите файл Excel с данными MIDAS";
 
@@ -52,7 +51,7 @@ namespace MidasLira
         {
             _logger.Debug("Кнопка выбора файла ЛИРА-САПР нажата");
 
-            OpenFileDialog dialog = new OpenFileDialog();
+            OpenFileDialog dialog = new ();
             dialog.Filter = "Text Files (*.txt)|*.txt|All files (*.*)|*.*";
             dialog.Title = "Выберите файл ЛИРА-САПР";
 
@@ -67,9 +66,12 @@ namespace MidasLira
             }
         }
 
-        private void ProcessButton_Click(object sender, RoutedEventArgs e)
+        private async void ProcessButton_Click(object sender, RoutedEventArgs e)
         {
             _logger.Info("Нажата кнопка 'Обработать'");
+
+            // Сохраняем исходное состояние курсора
+            var originalCursor = Cursor;
 
             try
             {
@@ -93,15 +95,50 @@ namespace MidasLira
                     return;
                 }
 
+                // Проверяем существование файлов
+                if (!File.Exists(inputFile))
+                {
+                    _logger.Warning($"Файл Excel не найден: {inputFile}");
+                    MessageBox.Show($"Файл Excel не найден:\n{inputFile}", "Ошибка",
+                                  MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                if (!File.Exists(outputFile))
+                {
+                    _logger.Warning($"Файл ЛИРА-САПР не найден: {outputFile}");
+                    MessageBox.Show($"Файл ЛИРА-САПР не найден:\n{outputFile}", "Ошибка",
+                                  MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
                 _logger.Info("Начало обработки данных");
 
-                // ОТКЛЮЧАЕМ КНОПКУ НА ВРЕМЯ ОБРАБОТКИ
-                var button = sender as Button;
-                button.IsEnabled = false;
+                // ОТКЛЮЧАЕМ КНОПКУ И МЕНЯЕМ КУРСОР НА ВРЕМЯ ОБРАБОТКИ 
+                if(sender is Button button)
+                {
+                    button.IsEnabled = false;
+                }
+                else
+                {
+                    // Если sender не кнопка, ищем кнопку по имени
+                    ProcessButton.IsEnabled = false;
+                }
                 Cursor = Cursors.Wait;
 
-                // ЗАПУСК ОБРАБОТКИ
-                bool success = _dataProcessor.ProcessFile(inputFile, outputFile);
+                // ЗАПУСК АСИНХРОННОЙ ОБРАБОТКИ
+                bool success = await Task.Run(() =>
+                {
+                    try
+                    {
+                        return _dataProcessor.ProcessFile(inputFile, outputFile);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Error($"Ошибка в фоновом потоке: {ex.Message}", ex);
+                        return false;
+                    }
+                });
 
                 if (success)
                 {
@@ -125,9 +162,16 @@ namespace MidasLira
             finally
             {
                 // ВОССТАНАВЛИВАЕМ ИНТЕРФЕЙС
-                var button = sender as Button;
-                button.IsEnabled = true;
-                Cursor = Cursors.Arrow;
+                if (sender is Button button)
+                {
+                    button.IsEnabled = true;
+                }
+                else
+                {
+                    ProcessButton.IsEnabled = true;
+                }
+                    
+                Cursor = originalCursor;
                 _logger.Info("Интерфейс восстановлен");
             }
         }

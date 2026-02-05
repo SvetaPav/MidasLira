@@ -11,7 +11,7 @@ using System.Xml.Linq;
 
 namespace MidasLira
 {
-    public static class Mapper
+    public static class Mapper  //GetNodesForElement - посмотреть об использовании логгера или сообщения об ошибке не через консоль
     {
         private const double Epsilon = 1e-6; // Погрешность для сравнения координат, мб надо будет
 
@@ -136,7 +136,23 @@ namespace MidasLira
         // Вспомогательный метод для получения узлов элемента
         private static IEnumerable<MidasNodeInfo> GetNodesForElement(MidasElementInfo element, List<MidasNodeInfo> nodes)
         {
-            return element.NodeIds.Select(nodeId => nodes.FirstOrDefault(n => n.Id == nodeId)).Where(n => n != null);
+            var foundNodes = new List<MidasNodeInfo>();
+
+            foreach (var nodeId in element.NodeIds)
+            {
+                var node = nodes.FirstOrDefault(n => n.Id == nodeId);
+                if (node != null)
+                {
+                    foundNodes.Add(node);
+                }
+                else
+                {
+                    // Логирование или отладочная информация
+                    Console.WriteLine($"Предупреждение: Узел с ID={nodeId} не найден для элемента ID={element.Id}");
+                }
+            }
+
+            return foundNodes;
         }
         //Как работает метод:
         //Initialization:  
@@ -169,14 +185,14 @@ namespace MidasLira
             public Plaque Plaque { get; set; } // Номер плиты, к которой принадлежит узел
             public int RigidityNumber { get; set; } // Номер жесткости для записи в файл
 
-            public MidasNodeInfo(int id, double x, double y, double z, double nodeDisplacement, List<MidasElementInfo> elements)
+            public MidasNodeInfo(int id, double x, double y, double z, double nodeDisplacement, List<MidasElementInfo>? elements = null)
             {
                 Id = id;
                 X = x;
                 Y = y;
                 Z = z;
                 NodeDisplacement = nodeDisplacement;
-                Elements = elements;
+                Elements = elements ?? []; // Используем новый синтаксис
                 AppropriateLiraNode = new LiraNodeInfo(); // изначально не знаем соответствующий узел в ЛИРА-САПР
                 Plaque = new Plaque();
                 RigidityNumber = 0; // Изначально не задан
@@ -239,18 +255,12 @@ namespace MidasLira
 
         public class Plaque
         {
-            public int Id { get; set; }
-            public List<MidasElementInfo> Elements { get; set; } // Элементы, принадлежащие плите
-            public List<MidasNodeInfo> Nodes { get; set; } // Узлы, принадлежащие плите
-            public double rigidNodes { get; set; }  // жесткоcть для узлов, принадлежащих этой плите
+            public int Id { get; set; } = 0;
+            public List<MidasElementInfo> Elements { get; set; } = new List<MidasElementInfo>(); // Элементы, принадлежащие плите
+            public List<MidasNodeInfo> Nodes { get; set; } = new List<MidasNodeInfo>(); // Узлы, принадлежащие плите
+            public double RigidNodes { get; set; } = 0; // жесткоcть для узлов, принадлежащих этой плите
 
-            public Plaque()
-            {
-                Id = 0;
-                Elements = new List<MidasElementInfo>();
-                Nodes = new List<MidasNodeInfo>();
-                rigidNodes = 0;
-            }
-        }
+          }
     }
 }
+

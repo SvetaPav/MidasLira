@@ -12,15 +12,12 @@ namespace MidasLira
     {
         private readonly Writer _writer;
         private readonly RigidityCalculator _rigidityCalculator;
-        private readonly ExcelReader _excelReader;
         private readonly Logger _logger;
 
-        public DataProcessor(RigidityCalculator rigidityCalculator, Writer writer,
-                           ExcelReader excelReader, Logger logger)
+        public DataProcessor(RigidityCalculator rigidityCalculator, Writer writer, Logger logger)
         {
             _rigidityCalculator = rigidityCalculator ?? throw new ArgumentNullException(nameof(rigidityCalculator));
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
-            _excelReader = excelReader ?? throw new ArgumentNullException(nameof(excelReader));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -34,11 +31,11 @@ namespace MidasLira
                 // ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
                 ValidateInputParameters(excelFilePath, liraSaprFilePath);
 
-                List<MidasNodeInfo> midasNodes = new List<MidasNodeInfo>();
-                List<LiraNodeInfo> liraNodes = new List<LiraNodeInfo>();
-                List<MidasElementInfo> midasElements = new List<MidasElementInfo>();
-                List<LiraElementInfo> liraElements = new List<LiraElementInfo>();
-                List<Plaque> plaques = new List<Plaque>();
+                List<MidasNodeInfo> midasNodes = new();
+                List<LiraNodeInfo> liraNodes = new();
+                List<MidasElementInfo> midasElements = new();
+                List<LiraElementInfo> liraElements = new();
+                List<Plaque> plaques = new();
 
                 try
                 {
@@ -46,7 +43,7 @@ namespace MidasLira
 
                     // Шаг 1: Чтение данных из Excel
                     _logger.StartOperation("Чтение данных из Excel");
-                    (midasNodes, liraNodes, midasElements, liraElements) = _excelReader.ReadFromExcel(excelFilePath);
+                    (midasNodes, liraNodes, midasElements, liraElements) = ExcelReader.ReadFromExcel(excelFilePath);
                     _logger.Info($"Прочитано: {midasNodes.Count} узлов MIDAS, {liraNodes.Count} узлов ЛИРА, " +
                                $"{midasElements.Count} элементов MIDAS, {liraElements.Count} элементов ЛИРА");
                     _logger.EndOperation("Чтение данных из Excel");
@@ -109,29 +106,66 @@ namespace MidasLira
 
         private void ValidateInputParameters(string excelFilePath, string liraSaprFilePath)
         {
-            _logger.Debug($"Валидация входных параметров");
+            _logger.Debug("Начало валидации входных параметров");
 
-            if (string.IsNullOrWhiteSpace(excelFilePath))
+            try
             {
-                throw new ArgumentException("Путь к файлу Excel не может быть пустым.", nameof(excelFilePath));
+                // Проверка на null/пустоту
+                ArgumentException.ThrowIfNullOrWhiteSpace(excelFilePath, nameof(excelFilePath));
+                ArgumentException.ThrowIfNullOrWhiteSpace(liraSaprFilePath, nameof(liraSaprFilePath));
+
+                // Проверка расширения файлов
+                ValidateFileExtension(excelFilePath, [".xlsx", ".xls"], "Excel");
+                ValidateFileExtension(liraSaprFilePath, [".txt"], "ЛИРА-САПР");
+
+                // Проверка существования файлов
+                ValidateFileExists(excelFilePath, "Excel");
+                ValidateFileExists(liraSaprFilePath, "ЛИРА-САПР");
+
+                _logger.Debug("Параметры успешно прошли валидацию");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error($"Ошибка валидации параметров: {ex.Message}", ex);
+                throw;
+            }
+        }
+
+        private void ValidateFileExtension(string filePath, string[] validExtensions, string fileType)
+        {
+            string extension = Path.GetExtension(filePath).ToLowerInvariant();
+
+            if (!validExtensions.Contains(extension))
+            {
+                throw new ArgumentException(
+                    $"Файл {fileType} должен иметь одно из расширений: {string.Join(", ", validExtensions)}. " +
+                    $"Получено: {extension}",
+                    Path.GetFileName(filePath));
+            }
+        }
+
+        private void ValidateFileExists(string filePath, string fileType)
+        {
+            if (!File.Exists(filePath))
+            {
+                string absolutePath = Path.GetFullPath(filePath);
+                string errorMessage = $"Файл {fileType} не найден:\n" +
+                                     $"Исходный путь: {filePath}\n" +
+                                     $"Абсолютный путь: {absolutePath}\n" +
+                                     $"Рабочая директория: {Environment.CurrentDirectory}";
+
+                throw new FileNotFoundException(errorMessage, filePath);
             }
 
-            if (string.IsNullOrWhiteSpace(liraSaprFilePath))
+            // Дополнительно: проверка прав доступа
+            try
             {
-                throw new ArgumentException("Путь к файлу ЛИРА-САПР не может быть пустым.", nameof(liraSaprFilePath));
+                using var stream = File.Open(filePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             }
-
-            if (!File.Exists(excelFilePath))
+            catch (IOException ex)
             {
-                throw new FileNotFoundException($"Файл Excel не найден: {excelFilePath}");
+                throw new IOException($"Файл {fileType} заблокирован или недоступен для чтения/записи: {filePath}", ex);
             }
-
-            if (!File.Exists(liraSaprFilePath))
-            {
-                throw new FileNotFoundException($"Файл ЛИРА-САПР не найден: {liraSaprFilePath}");
-            }
-
-            _logger.Debug($"Параметры валидны");
         }
     }
 }
