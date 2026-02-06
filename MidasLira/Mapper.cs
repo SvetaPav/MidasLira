@@ -18,6 +18,23 @@ namespace MidasLira
         /// <summary>
         /// Строит соответствие элементов MIDAS и ЛИРА-САПР по общим узлам.
         /// </summary>
+
+        private static Dictionary<int, MidasNodeInfo> CreateNodeDictionary(List<MidasNodeInfo> nodes)
+        {
+            var dictionary = new Dictionary<int, MidasNodeInfo>(nodes.Count);
+
+            foreach (var node in nodes)
+            {
+                if (!dictionary.TryAdd(node.Id, node))
+                {
+                    // Обработка дубликатов ID
+                    Console.WriteLine($"Предупреждение: Дубликат ID узла: {node.Id}");
+                }
+            }
+
+            return dictionary;
+        }
+
         public static void MapNodesAndElements(List<MidasNodeInfo> midasNodes, List<LiraNodeInfo> liraNodes, List<MidasElementInfo> midasElements, List<LiraElementInfo> liraElements)
         {
             // 1. Сопоставляем узлы 
@@ -65,12 +82,12 @@ namespace MidasLira
 
 
         /// <summary>
-        /// Метод кластеризации элементов по плитам
+        /// Метод кластеризации элементов по плитам с использованием словаря узлов
         /// </summary>
         /// <param name="elements"></param>
         /// <param name="nodes"></param>
         /// <returns></returns>
-        public static List<Plaque> ClusterizeElements(List<MidasElementInfo> elements, List<MidasNodeInfo> nodes)
+        public static List<Plaque> ClusterizeElements(List<MidasElementInfo> elements, Dictionary<int, MidasNodeInfo> nodeDictionary)
         {
             var plaques = new List<Plaque>();
 
@@ -85,7 +102,7 @@ namespace MidasLira
                 // Создаем новую плиту
                 var plaque = new Plaque();
                 plaque.Elements.Add(element);
-                plaque.Nodes.AddRange(GetNodesForElement(element, nodes));
+                plaque.Nodes.AddRange(GetNodesForElement(element, nodeDictionary));
 
                 var queue = new Queue<MidasElementInfo>();
                 queue.Enqueue(element);
@@ -106,7 +123,7 @@ namespace MidasLira
                         if (otherElement.NodeIds.Intersect(currentElement.NodeIds).Any())
                         {
                             plaque.Elements.Add(otherElement);
-                            plaque.Nodes.AddRange(GetNodesForElement(otherElement, nodes));
+                            plaque.Nodes.AddRange(GetNodesForElement(otherElement, nodeDictionary));
                             queue.Enqueue(otherElement);
                             processedElements.Add(otherElement.Id);
                         }
@@ -134,20 +151,19 @@ namespace MidasLira
         }
 
         // Вспомогательный метод для получения узлов элемента
-        private static IEnumerable<MidasNodeInfo> GetNodesForElement(MidasElementInfo element, List<MidasNodeInfo> nodes)
+        private static List<MidasNodeInfo> GetNodesForElement(MidasElementInfo element, Dictionary<int, MidasNodeInfo> nodeDictionary)
         {
-            var foundNodes = new List<MidasNodeInfo>();
+            var foundNodes = new List<MidasNodeInfo>(element.NodeIds.Length);
 
             foreach (var nodeId in element.NodeIds)
             {
-                var node = nodes.FirstOrDefault(n => n.Id == nodeId);
-                if (node != null)
+                if (nodeDictionary.TryGetValue(nodeId, out var node))
                 {
                     foundNodes.Add(node);
                 }
                 else
                 {
-                    // Логирование или отладочная информация
+                    // отладочная информация
                     Console.WriteLine($"Предупреждение: Узел с ID={nodeId} не найден для элемента ID={element.Id}");
                 }
             }

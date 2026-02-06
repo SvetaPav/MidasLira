@@ -80,7 +80,7 @@ namespace MidasLira
                     liraWorksheet.Cells[row, 2].GetValue<double>(), // X
                     liraWorksheet.Cells[row, 3].GetValue<double>(), // Y
                     liraWorksheet.Cells[row, 4].GetValue<double>(), // Z
-                    new List<LiraElementInfo>()));                     // Пока элементы пусты
+                    []));                     // Пока элементы пусты
             }
 
             // Лист с элементами MIDAS
@@ -113,18 +113,23 @@ namespace MidasLira
                     0)); // С1, заполняется позже
             }
 
-            // Привязываем элементы к узлам
+            var midasNodeDict = nodesMidas.ToDictionary(n => n.Id, n => n);
+
+            // Привязываем элементы к узлам (используя словарь)
             foreach (var element in elementsMidas)
             {
                 foreach (var nodeId in element.NodeIds)
                 {
-                    // Ищем узел по его уникальному идентификатору
-                    var node = nodesMidas.FirstOrDefault(n => n.Id == nodeId);
-
-                    // Присоединяем элемент к узлу, если узел найден
-                    if (node != null) // Проверка на положительный идентификатор узла
+                    if (midasNodeDict.TryGetValue(nodeId, out var node))
                     {
                         node.Elements.Add(element);
+                    }
+                    else
+                    {
+                        // Логирование ошибки
+                        // ДОБАВИТЬ
+                        // Вывод в консоль для тестирования
+                        Console.WriteLine($"Ошибка: Узел MIDAS с ID={nodeId} не найден для элемента ID={element.Id}");
                     }
                 }
             }
@@ -153,21 +158,27 @@ namespace MidasLira
                     );
             }
 
+            var liraNodeDict = nodesLira.ToDictionary(n => n.Id, n => n);
 
+            // Привязываем элементы к узлам (используя словарь)
             foreach (var element in elementsLira)
             {
                 foreach (var nodeId in element.NodeIds)
                 {
-                    // Ищем узел по его уникальному идентификатору
-                    var node = nodesLira.FirstOrDefault(n => n.Id == nodeId);
-
-                    // Присоединяем элемент к узлу, если узел найден
-                    if (node.Id != 0) // Проверка на положительный идентификатор узла
+                    if (liraNodeDict.TryGetValue(nodeId, out var node))
                     {
                         node.Elements.Add(element);
                     }
+                    else
+                    {
+                        // Логирование ошибки
+                        // ДОБАВИТЬ
+                        // Вывод в консоль для тестирования
+                        Console.WriteLine($"Ошибка: Узел ЛИРА с ID={nodeId} не найден для элемента ID={element.Id}");
+                    }
                 }
             }
+
 
             // Лист с напряжениями
             var stressWorksheet = package.Workbook.Worksheets["Sheet5"];
