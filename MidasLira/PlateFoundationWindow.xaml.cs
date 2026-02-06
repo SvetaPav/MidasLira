@@ -32,9 +32,12 @@ namespace MidasLira
         {
             _logger.Debug("Кнопка выбора файла Excel нажата");
 
-            OpenFileDialog dialog = new ();
-            dialog.Filter = "Excel Files (*.xlsx)|*.xlsx|Excel Files (*.xls)|*.xls|All files (*.*)|*.*";
-            dialog.Title = "Выберите файл Excel с данными MIDAS";
+            OpenFileDialog dialog = new()
+            {
+                Filter = "Excel Files (*.xlsx)|*.xlsx|Excel Files (*.xls)|*.xls|All files (*.*)|*.*",
+                Title = "Выберите файл Excel с данными MIDAS"
+            };
+
 
             if (dialog.ShowDialog() == true)
             {
@@ -51,9 +54,11 @@ namespace MidasLira
         {
             _logger.Debug("Кнопка выбора файла ЛИРА-САПР нажата");
 
-            OpenFileDialog dialog = new ();
-            dialog.Filter = "Text Files (*.txt)|*.txt|All files (*.*)|*.*";
-            dialog.Title = "Выберите файл ЛИРА-САПР";
+            OpenFileDialog dialog = new()
+            {
+                Filter = "Text Files (*.txt)|*.txt|All files (*.*)|*.*",
+                Title = "Выберите файл ЛИРА-САПР"
+            };
 
             if (dialog.ShowDialog() == true)
             {
