@@ -13,7 +13,7 @@ namespace MidasLira
 {
     public static class Mapper  //GetNodesForElement - посмотреть об использовании логгера или сообщения об ошибке не через консоль
     {
-        private const double Epsilon = 1e-6; // Погрешность для сравнения координат, мб надо будет
+        private const double COORDINATE_EPSILON = 0.001; // Погрешность для сравнения координат
 
         /// <summary>
         /// Строит соответствие элементов MIDAS и ЛИРА-САПР по общим узлам.
@@ -25,11 +25,11 @@ namespace MidasLira
             {
                 var midasNode = midasNodes[i];
                 var matchingLiraNode = liraNodes.FirstOrDefault(l =>
-                    l.X == midasNode.X &&
-                    l.Y == midasNode.Y &&
-                    l.Z == midasNode.Z);
+                     Math.Abs(l.X - midasNode.X) < COORDINATE_EPSILON &&
+                     Math.Abs(l.Y - midasNode.Y) < COORDINATE_EPSILON &&
+                     Math.Abs(l.Z - midasNode.Z) < COORDINATE_EPSILON);
 
-                if (!matchingLiraNode.Equals(default(LiraNodeInfo))) // Исправленная проверка
+                if (!matchingLiraNode.IsEmpty) // Исправленная проверка
                 {
                     midasNode.AppropriateLiraNode = matchingLiraNode;
                 }
@@ -44,7 +44,7 @@ namespace MidasLira
                                     .Select(midNodeId =>
                                     {
                                         var correspondingNode = midasNodes.FirstOrDefault(md => md.Id == midNodeId);
-                                        if (correspondingNode != null && correspondingNode.AppropriateLiraNode.Equals(default(LiraNodeInfo)))
+                                        if (correspondingNode != null && correspondingNode.AppropriateLiraNode.Equals(default))
                                             return correspondingNode.AppropriateLiraNode.Id;
                                         return 0;
                                     })
@@ -112,7 +112,7 @@ namespace MidasLira
                         }
                     }
                 }
-                plaque.Nodes = plaque.Nodes.Distinct().ToList();
+                plaque.Nodes = [.. plaque.Nodes.Distinct()];  // сокращение plaque.Nodes = plaque.Nodes.Distinct().ToList();
 
                 // Присваиваем плите уникальный номер
                 plaque.Id = plaques.Count + 1;
@@ -181,7 +181,7 @@ namespace MidasLira
             public double Z { get; }
             public double NodeDisplacement { get; }
             public List<MidasElementInfo> Elements { get; }
-            public LiraNodeInfo AppropriateLiraNode { get; set; }  // соответствующий узел в ЛИРА-САПР
+            public LiraNodeInfo AppropriateLiraNode { get; set; } = LiraNodeInfo.Empty; // соответствующий узел в ЛИРА-САПР, используем Empty
             public Plaque Plaque { get; set; } // Номер плиты, к которой принадлежит узел
             public int RigidityNumber { get; set; } // Номер жесткости для записи в файл
 
@@ -193,7 +193,7 @@ namespace MidasLira
                 Z = z;
                 NodeDisplacement = nodeDisplacement;
                 Elements = elements ?? []; // Используем новый синтаксис
-                AppropriateLiraNode = new LiraNodeInfo(); // изначально не знаем соответствующий узел в ЛИРА-САПР
+                AppropriateLiraNode = LiraNodeInfo.Empty; // изначально не знаем соответствующий узел в ЛИРА-САПР
                 Plaque = new Plaque();
                 RigidityNumber = 0; // Изначально не задан
             }
@@ -223,8 +223,9 @@ namespace MidasLira
             }
         }
 
-        public struct LiraNodeInfo
+        public readonly struct LiraNodeInfo: IEquatable<LiraNodeInfo>
         {
+            private const double Epsilon = 1e-6;  // Допуск 0.001 мм
             public int Id { get; }
             public double X { get; }
             public double Y { get; }
@@ -237,11 +238,54 @@ namespace MidasLira
                 X = x;
                 Y = y;
                 Z = z;
-                Elements = elements;
+                Elements = elements ?? [];
+            }
+
+            // Cтатическое свойство для "пустого" значения
+            public static LiraNodeInfo Empty => new(0, 0, 0, 0, []);
+
+            // Метод для проверки на "пустоту"
+            public bool IsEmpty => Id == 0;
+
+            // Реализация IEquatable для избежания боксинга
+            public bool Equals (LiraNodeInfo other)
+            {
+                return Id == other.Id && 
+                    Math.Abs(X - other.X) < Epsilon &&
+                    Math.Abs (Y - other.Y) < Epsilon &&
+                    Math.Abs (Z- other.Z) < Epsilon;
+            }
+
+            // Переопределяем Equals для корректного сравнения
+            public override bool Equals(object? obj)
+            {
+                return obj is LiraNodeInfo other && Equals(other);
+            }
+
+            // GetHashCode должен быть согласован с Equals
+            public override int GetHashCode()
+            {
+                // Округляем координаты для хэш-кода
+                int xHash = (int)(X / Epsilon);
+                int yHash = (int)(Y / Epsilon);
+                int zHash = (int)(Z / Epsilon);
+
+                return HashCode.Combine(Id, xHash, yHash, zHash);
+            }
+
+            // Перегрузка операторов == и !=
+            public static bool operator ==(LiraNodeInfo left, LiraNodeInfo right)
+            {
+                return left.Equals(right);
+            }
+
+            public static bool operator !=(LiraNodeInfo left, LiraNodeInfo right)
+            {
+                return !(left == right);
             }
         }
 
-        public struct LiraElementInfo
+        public readonly struct LiraElementInfo
         {
             public int Id { get; }
             public int[] NodeIds { get; } // Узлы, принадлежащие элементу
@@ -249,18 +293,20 @@ namespace MidasLira
             public LiraElementInfo(int id, int[] nodeIds)
             {
                 Id = id;
-                NodeIds = nodeIds;
+                NodeIds = nodeIds ?? [];
             }
+            public static LiraElementInfo Empty => new(0, []);
+            public bool IsEmpty => Id == 0;
         }
 
         public class Plaque
         {
             public int Id { get; set; } = 0;
-            public List<MidasElementInfo> Elements { get; set; } = new List<MidasElementInfo>(); // Элементы, принадлежащие плите
-            public List<MidasNodeInfo> Nodes { get; set; } = new List<MidasNodeInfo>(); // Узлы, принадлежащие плите
+            public List<MidasElementInfo> Elements { get; set; } = []; // Элементы, принадлежащие плите
+            public List<MidasNodeInfo> Nodes { get; set; } = []; // Узлы, принадлежащие плите
             public double RigidNodes { get; set; } = 0; // жесткоcть для узлов, принадлежащих этой плите
 
-          }
+        }
     }
 }
 
