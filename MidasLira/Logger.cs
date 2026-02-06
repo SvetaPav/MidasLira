@@ -18,7 +18,7 @@ namespace MidasLira
 
     public class Logger
     {
-        private static readonly object _lockObject = new object();
+        private static readonly object _lockObject = new();
         private const string LOG_DIRECTORY = "Logs";
         private const int MAX_LOG_FILES = 30; // Хранить логи за 30 дней
         private readonly string _logFilePath;
@@ -52,7 +52,7 @@ namespace MidasLira
         /// <summary>
         /// Основной метод логирования
         /// </summary>
-        public void LogEvent(LogLevel level, string message, Exception exception = null)
+        public void LogEvent(LogLevel level, string message, Exception? exception = null)
         {
             try
             {
@@ -61,10 +61,10 @@ namespace MidasLira
                 lock (_lockObject)
                 {
                     // Запись в файл
-                    using (StreamWriter writer = File.AppendText(_logFilePath))
-                    {
-                        writer.WriteLine(logEntry);
-                    }
+                    using StreamWriter writer = File.AppendText(_logFilePath);
+                    
+                    writer.WriteLine(logEntry);
+                    
                 }
 
                 // Вывод в консоль (если включен)
@@ -84,10 +84,10 @@ namespace MidasLira
         /// <summary>
         /// Форматирование записи лога
         /// </summary>
-        private string FormatLogEntry(LogLevel level, string message, Exception exception)
+        private static string FormatLogEntry(LogLevel level, string message, Exception? exception)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff");
-            var levelStr = $"[{level.ToString().PadRight(8)}]";
+            var levelStr = $"[{level,-8}]";
 
             string logEntry = $"{timestamp} {levelStr} {message}";
 
@@ -133,12 +133,16 @@ namespace MidasLira
         /// <summary>
         /// Получение версии приложения
         /// </summary>
-        private string GetAppVersion()
+        private static string GetAppVersion()
         {
             try
             {
                 var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
-                return $"{version.Major}.{version.Minor}.{version.Build}";
+                if (version != null)
+                {
+                    return $"{version.Major}.{version.Minor}.{version.Build}";
+                }
+                return "Unknown";
             }
             catch
             {
@@ -179,8 +183,8 @@ namespace MidasLira
         public void Debug(string message) => LogEvent(LogLevel.DEBUG, message);
         public void Info(string message) => LogEvent(LogLevel.INFO, message);
         public void Warning(string message) => LogEvent(LogLevel.WARNING, message);
-        public void Error(string message, Exception ex = null) => LogEvent(LogLevel.ERROR, message, ex);
-        public void Critical(string message, Exception ex = null) => LogEvent(LogLevel.CRITICAL, message, ex);
+        public void Error(string message, Exception? ex = null) => LogEvent(LogLevel.ERROR, message, ex);
+        public void Critical(string message, Exception? ex = null) => LogEvent(LogLevel.CRITICAL, message, ex);
 
         /// <summary>
         /// Логирование выполнения блока кода с замером времени
@@ -224,5 +228,10 @@ namespace MidasLira
                 throw;
             }
         }
+
+        /// <summary>
+        /// Возвращает путь к текущему файлу логов
+        /// </summary>
+        public string GetLogFilePath() => _logFilePath;
     }
 }
