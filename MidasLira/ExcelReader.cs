@@ -127,7 +127,7 @@ namespace MidasLira
                     else
                     {
                         // Логирование ошибки
-                        // ДОБАВИТЬ
+                        AppLogger.Warning($"Узел MIDAS с ID={nodeId} не найден для элемента ID={element.Id}");
                         // Вывод в консоль для тестирования
                         Console.WriteLine($"Ошибка: Узел MIDAS с ID={nodeId} не найден для элемента ID={element.Id}");
                     }
@@ -172,7 +172,7 @@ namespace MidasLira
                     else
                     {
                         // Логирование ошибки
-                        // ДОБАВИТЬ
+                        AppLogger.Warning($"Узел ЛИРА с ID={nodeId} не найден для элемента ID={element.Id}");
                         // Вывод в консоль для тестирования
                         Console.WriteLine($"Ошибка: Узел ЛИРА с ID={nodeId} не найден для элемента ID={element.Id}");
                     }

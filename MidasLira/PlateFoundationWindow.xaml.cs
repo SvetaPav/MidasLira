@@ -22,6 +22,8 @@ namespace MidasLira
         {
             InitializeComponent();
             _logger = new Logger(enableConsoleOutput: true); // Включаем вывод в консоль для отладки
+            AppLogger.Initialize(_logger);
+
             _dataProcessor = new DataProcessor(
                 new RigidityCalculator(),
                 new Writer(new PositionFinder(), _logger),

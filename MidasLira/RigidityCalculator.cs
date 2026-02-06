@@ -96,17 +96,14 @@ namespace MidasLira
             }
 
 
-            switch (points.Count)
+            return points.Count switch
             {
-                case 3: // Треугольник
-                    return TriangleArea(points[0], points[1], points[2]);
-
-                case 4: // Четырехугольник
-                    return QuadrilateralArea(points[0], points[1], points[2], points[3]);
-
-                default:
-                    throw new ArgumentException($"Некорректное количество узлов элемента ID={element.Id}: {points.Count}. Ожидается 3 или 4.");
-            }
+                // Треугольник
+                3 => TriangleArea(points[0], points[1], points[2]),
+                // Четырехугольник
+                4 => QuadrilateralArea(points[0], points[1], points[2], points[3]),
+                _ => throw new ArgumentException($"Некорректное количество узлов элемента ID={element.Id}: {points.Count}. Ожидается 3 или 4."),
+            };
         }
 
         // Метод для расчета площади треугольника

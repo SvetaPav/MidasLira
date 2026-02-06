@@ -163,6 +163,7 @@ namespace MidasLira
                 }
                 else
                 {
+                    AppLogger.Warning($"Узел с ID={nodeId} не найден для элемента ID={element.Id}");
                     // отладочная информация
                     Console.WriteLine($"Предупреждение: Узел с ID={nodeId} не найден для элемента ID={element.Id}");
                 }
