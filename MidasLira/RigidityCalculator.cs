@@ -21,11 +21,11 @@ namespace MidasLira
         /// <param name="elements">Список элементов MIDAS</param>
         /// <returns>Список плит с рассчитанными жесткостями</returns>
 
-        public List<Plaque> CalculateNodeRigidities(List<MidasNodeInfo> nodes, List<MidasElementInfo> elements)
+        public static List<Plaque> CalculateNodeRigidities(List<MidasNodeInfo> nodes, List<MidasElementInfo> elements)
         {
             // ПРОВЕРКА: Входные коллекции
-            if (nodes == null) throw new ArgumentNullException(nameof(nodes));
-            if (elements == null) throw new ArgumentNullException(nameof(elements));
+            ArgumentNullException.ThrowIfNull(nodes); // вместо if (nodes == null) throw new ArgumentNullException(nameof(nodes));
+            ArgumentNullException.ThrowIfNull(elements);
             if (nodes.Count == 0) throw new ArgumentException("Список узлов не может быть пустым.", nameof(nodes));
             if (elements.Count == 0) throw new ArgumentException("Список элементов не может быть пустым.", nameof(elements));
 
@@ -39,14 +39,14 @@ namespace MidasLira
         /// Приватный метод для расчета жесткостей с использованием словаря узлов
         /// </summary>
 
-        private List<Plaque> CalculateNodeRigiditiesWithDictionary(
+        private static List<Plaque> CalculateNodeRigiditiesWithDictionary(
            Dictionary<int, MidasNodeInfo> nodeDictionary,
            List<MidasElementInfo> elements)
         {
             // Проверка словаря
-            if (nodeDictionary == null) throw new ArgumentNullException(nameof(nodeDictionary));
+            ArgumentNullException.ThrowIfNull(nodeDictionary);
             if (nodeDictionary.Count == 0) throw new ArgumentException("Словарь узлов не может быть пустым.", nameof(nodeDictionary));
-            if (elements == null) throw new ArgumentNullException(nameof(elements));
+            ArgumentNullException.ThrowIfNull(elements);
             if (elements.Count == 0) throw new ArgumentException("Список элементов не может быть пустым.", nameof(elements));
 
             // Группа элементов по плитам (теперь передаем словарь)
@@ -71,18 +71,18 @@ namespace MidasLira
         }
 
         // Метод расчета площади плиты
-        private double GetPlaqueArea(List<MidasElementInfo> plaque, Dictionary<int, MidasNodeInfo> nodeDictionary)
+        private static double GetPlaqueArea(List<MidasElementInfo> plaque, Dictionary<int, MidasNodeInfo> nodeDictionary)
         {
             return plaque.Sum(element => CalculateElementArea(element, nodeDictionary));
         }
 
 
         // Метод для расчета площади элемента 
-        private double CalculateElementArea(MidasElementInfo element, Dictionary<int, MidasNodeInfo> nodeDictionary)
+        private static double CalculateElementArea(MidasElementInfo element, Dictionary<int, MidasNodeInfo> nodeDictionary)
         {
             // ПРОВЕРКА: Элемент и узлы
-            if (element == null) throw new ArgumentNullException(nameof(element));
-            if (nodeDictionary == null) throw new ArgumentNullException(nameof(nodeDictionary));
+            ArgumentNullException.ThrowIfNull(element);
+            ArgumentNullException.ThrowIfNull(nodeDictionary);
 
             // Получаем координаты узлов элемента
             var points = new List<MidasNodeInfo>();
@@ -107,10 +107,15 @@ namespace MidasLira
         }
 
         // Метод для расчета площади треугольника
-        private double TriangleArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C)
+        private static double TriangleArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C)
         {
-            if (A == null || B == null || C == null)
-                throw new ArgumentNullException("Все параметры треугольника должны быть не null");
+            //if (A == null || B == null || C == null)
+            //    throw new ArgumentNullException("Все параметры треугольника должны быть не null");
+            ArgumentNullException.ThrowIfNull(A);  // вместо if (A == null)    throw new ArgumentNullException(nameof(A));
+            ArgumentNullException.ThrowIfNull(B);
+            ArgumentNullException.ThrowIfNull(C);
+
+            Console.WriteLine("Все параметры треугольника должны быть не null");
 
             double sideA = Distance(A, B);
             double sideB = Distance(B, C);
@@ -121,16 +126,20 @@ namespace MidasLira
         }
 
         // Метод для расчета площади четырехугольника (деление на два треугольника)
-        private double QuadrilateralArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C, MidasNodeInfo D)
+        private static double QuadrilateralArea(MidasNodeInfo A, MidasNodeInfo B, MidasNodeInfo C, MidasNodeInfo D)
         {
-            if (A == null || B == null || C == null)
-                throw new ArgumentNullException("Все параметры четырехугольника должны быть не null");
+            ArgumentNullException.ThrowIfNull(A); 
+            ArgumentNullException.ThrowIfNull(B);
+            ArgumentNullException.ThrowIfNull(C);
+            ArgumentNullException.ThrowIfNull(D);
+
+            Console.WriteLine("Все параметры четырехугольника должны быть не null");
 
             return TriangleArea(A, B, C) + TriangleArea(A, C, D);
         }
 
         // Метод для расчета среднего коэффициента постели
-        private double AverageBeddingCoefficient(List<MidasElementInfo> elements)
+        private static double AverageBeddingCoefficient(List<MidasElementInfo> elements)
         {
             if (elements == null || elements.Count == 0)
                 return 0;
@@ -140,8 +149,9 @@ namespace MidasLira
         // Расстояние между двумя узлами.     
         public static double Distance(MidasNodeInfo a, MidasNodeInfo b)
         {
-            if (a == null || b == null)
-                throw new ArgumentNullException("Оба узла должны быть не null");
+            ArgumentNullException.ThrowIfNull(a);
+            ArgumentNullException.ThrowIfNull(b);
+            Console.WriteLine("Оба узла должны быть не null");
 
             return Math.Sqrt(Math.Pow(a.X - b.X, 2) +
                            Math.Pow(a.Y - b.Y, 2) +

@@ -25,7 +25,6 @@ namespace MidasLira
             AppLogger.Initialize(_logger);
 
             _dataProcessor = new DataProcessor(
-                new RigidityCalculator(),
                 new Writer(new PositionFinder(), _logger),
                 _logger);
         }
