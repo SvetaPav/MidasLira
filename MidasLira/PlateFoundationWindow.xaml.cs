@@ -1,4 +1,7 @@
 using Microsoft.Win32;
+using System.ComponentModel;
+using System.IO;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,25 +12,81 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
-using System.IO;
 
 namespace MidasLira
 {
+    /// <summary>
+    /// Модель прогресса для привязки
+    /// </summary>
+    public class ProgressModel : INotifyPropertyChanged
+    {
+        private double _progress;
+        private string? _status;
+        private bool _isIndeterminate;
+
+        public double Progress
+        {
+            get => _progress;
+            set
+            {
+                _progress = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string? Status
+        {
+            get => _status;
+            set
+            {
+                _status = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsIndeterminate
+        {
+            get => _isIndeterminate;
+            set
+            {
+                _isIndeterminate = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
     public partial class PlateFoundationWindow : Window
     {
         private readonly DataProcessor _dataProcessor;
         private readonly Logger _logger;
+        private ProgressModel _progressModel;
+        private bool _isProcessing;
 
         public PlateFoundationWindow()
         {
             InitializeComponent();
             _logger = new Logger(enableConsoleOutput: true); // Включаем вывод в консоль для отладки
-            AppLogger.Initialize(_logger);
+            _progressModel = new ProgressModel();
+
+            // Устанавливаем контекст данных для привязки
+            this.DataContext = _progressModel;
 
             _dataProcessor = new DataProcessor(
-                new RigidityCalculator(),
                 new Writer(new PositionFinder(), _logger),
                 _logger);
+
+            // Привязка ProgressBar к модели
+            ProgressBar.SetBinding(ProgressBar.ValueProperty, new Binding("Progress") { Mode = BindingMode.OneWay });
+            ProgressText.SetBinding(TextBlock.TextProperty, new Binding("Status") { Mode = BindingMode.OneWay });
+
+            //UpdateUIState();
         }
 
         private void SelectExcelButton_Click(object sender, RoutedEventArgs e)

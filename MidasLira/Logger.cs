@@ -20,7 +20,7 @@ namespace MidasLira
     {
         private static readonly object _lockObject = new();
         private const string LOG_DIRECTORY = "Logs";
-        private const int MAX_LOG_FILES = 30; // Хранить логи за 30 дней
+        private const int MAX_LOG_FILES = 3; // Хранить логи за 3 дня
         private readonly string _logFilePath;
         private readonly bool _enableConsoleOutput;
 

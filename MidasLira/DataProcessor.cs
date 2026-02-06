@@ -11,12 +11,10 @@ namespace MidasLira
     public class DataProcessor
     {
         private readonly Writer _writer;
-        private readonly RigidityCalculator _rigidityCalculator;
         private readonly Logger _logger;
 
-        public DataProcessor(RigidityCalculator rigidityCalculator, Writer writer, Logger logger)
+        public DataProcessor(Writer writer, Logger logger)
         {
-            _rigidityCalculator = rigidityCalculator ?? throw new ArgumentNullException(nameof(rigidityCalculator));
             _writer = writer ?? throw new ArgumentNullException(nameof(writer));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
@@ -31,11 +29,11 @@ namespace MidasLira
                 // ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
                 ValidateInputParameters(excelFilePath, liraSaprFilePath);
 
-                List<MidasNodeInfo> midasNodes = new();
-                List<LiraNodeInfo> liraNodes = new();
-                List<MidasElementInfo> midasElements = new();
-                List<LiraElementInfo> liraElements = new();
-                List<Plaque> plaques = new();
+                List<MidasNodeInfo> midasNodes = [];
+                List<LiraNodeInfo> liraNodes = [];
+                List<MidasElementInfo> midasElements = [];
+                List<LiraElementInfo> liraElements = [];
+                List<Plaque> plaques = [];
 
                 try
                 {
@@ -71,7 +69,7 @@ namespace MidasLira
 
                     // Шаг 3: Расчет жесткостей
                     _logger.StartOperation("Расчет жесткостей узлов");
-                    plaques = _rigidityCalculator.CalculateNodeRigidities(midasNodes, midasElements);
+                    plaques = RigidityCalculator.CalculateNodeRigidities(midasNodes, midasElements);
                     _logger.Info($"Рассчитано жесткостей для {plaques.Count} плит");
                     _logger.EndOperation("Расчет жесткостей узлов");
 
@@ -131,7 +129,7 @@ namespace MidasLira
             }
         }
 
-        private void ValidateFileExtension(string filePath, string[] validExtensions, string fileType)
+        private static void ValidateFileExtension(string filePath, string[] validExtensions, string fileType)
         {
             string extension = Path.GetExtension(filePath).ToLowerInvariant();
 
@@ -144,7 +142,7 @@ namespace MidasLira
             }
         }
 
-        private void ValidateFileExists(string filePath, string fileType)
+        private static void ValidateFileExists(string filePath, string fileType)
         {
             if (!File.Exists(filePath))
             {
