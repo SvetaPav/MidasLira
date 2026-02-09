@@ -30,7 +30,6 @@ namespace MidasLira
             if (!File.Exists(path))
                 throw new FileNotFoundException($"Файл не найден: {path}");
 
-
             using var package = new ExcelPackage(new FileInfo(path));
 
 

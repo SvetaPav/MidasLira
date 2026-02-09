@@ -232,6 +232,6 @@ namespace MidasLira
         /// <summary>
         /// Возвращает путь к текущему файлу логов
         /// </summary>
-        public string GetLogFilePath() => _logFilePath;
+        public string LogFilePath() => _logFilePath;
     }
 }

@@ -26,7 +26,7 @@ namespace MidasLira
         // Метод для получения пути к файлу логов (для пользователя)
         public static string GetLogFilePath()
         {
-            return _instance?.GetLogFilePath() ?? string.Empty;
+            return _instance?.LogFilePath() ?? string.Empty;
         }
     }
 }

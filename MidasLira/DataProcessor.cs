@@ -20,84 +20,105 @@ namespace MidasLira
         }
 
         /// <summary>
-        /// Главный метод обработки данных.
+        /// Главный метод обработки данных с отслеживанием прогресса
         /// </summary>
-        public bool ProcessFile(string excelFilePath, string liraSaprFilePath)
+        public bool ProcessFile(string excelFilePath, string liraSaprFilePath, 
+                                        IProgress<(double Progress, string Status)>? progress = null)
         {
             return _logger.LogExecutionTime("Обработка файлов", () =>
             {
-                // ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
-                ValidateInputParameters(excelFilePath, liraSaprFilePath);
-
-                List<MidasNodeInfo> midasNodes = [];
-                List<LiraNodeInfo> liraNodes = [];
-                List<MidasElementInfo> midasElements = [];
-                List<LiraElementInfo> liraElements = [];
-                List<Plaque> plaques = [];
-
                 try
                 {
-                    _logger.Info($"Обработка файлов:\n  Excel: {excelFilePath}\n  ЛИРА: {liraSaprFilePath}");
+                    // ВАЛИДАЦИЯ ВХОДНЫХ ПАРАМЕТРОВ
+                    ValidateInputParameters(excelFilePath, liraSaprFilePath);
 
-                    // Шаг 1: Чтение данных из Excel
-                    _logger.StartOperation("Чтение данных из Excel");
-                    (midasNodes, liraNodes, midasElements, liraElements) = ExcelReader.ReadFromExcel(excelFilePath);
-                    _logger.Info($"Прочитано: {midasNodes.Count} узлов MIDAS, {liraNodes.Count} узлов ЛИРА, " +
-                               $"{midasElements.Count} элементов MIDAS, {liraElements.Count} элементов ЛИРА");
-                    _logger.EndOperation("Чтение данных из Excel");
+                    progress?.Report((0, "Начало обработки..."));
 
-                    // Шаг 2: Сопоставление узлов и элементов
-                    _logger.StartOperation("Сопоставление узлов и элементов");
-                    MapNodesAndElements(midasNodes, liraNodes, midasElements, liraElements);
+                    List<MidasNodeInfo> midasNodes = [];
+                    List<LiraNodeInfo> liraNodes = [];
+                    List<MidasElementInfo> midasElements = [];
+                    List<LiraElementInfo> liraElements = [];
+                    List<Plaque> plaques = [];
 
-                    // АНАЛИЗ СОПОСТАВЛЕНИЯ
-                    int matchedNodesCount = midasNodes.Count(n => n.AppropriateLiraNode.Id != 0);
-                    int matchedElementsCount = midasElements.Count(e => e.AppropriateLiraElement.Id != 0);
-
-                    _logger.Info($"Сопоставлено: {matchedNodesCount}/{midasNodes.Count} узлов " +
-                               $"({(double)matchedNodesCount / midasNodes.Count * 100:F1}%)");
-                    _logger.Info($"Сопоставлено: {matchedElementsCount}/{midasElements.Count} элементов " +
-                               $"({(double)matchedElementsCount / midasElements.Count * 100:F1}%)");
-
-                    if (matchedNodesCount == 0)
+                    try
                     {
-                        throw new InvalidOperationException("Не удалось сопоставить ни один узел. " +
-                                                          "Проверьте координаты в файлах Excel.");
+                        _logger.Info($"Обработка файлов:\n  Excel: {excelFilePath}\n  ЛИРА: {liraSaprFilePath}");
+
+                        // Шаг 1: Чтение данных из Excel (20%)
+                        progress?.Report((10, "Чтение данных из Excel..."));
+                        _logger.StartOperation("Чтение данных из Excel");
+                        (midasNodes, liraNodes, midasElements, liraElements) = ExcelReader.ReadFromExcel(excelFilePath);
+                        progress?.Report((20, $"Прочитано {midasNodes.Count} узлов и {midasElements.Count} элементов"));
+                        _logger.Info($"Прочитано: {midasNodes.Count} узлов MIDAS, {liraNodes.Count} узлов ЛИРА, " +
+                               $"{midasElements.Count} элементов MIDAS, {liraElements.Count} элементов ЛИРА");
+                        _logger.EndOperation("Чтение данных из Excel");
+
+                        // Шаг 2: Сопоставление узлов и элементов (40%)
+                        progress?.Report((30, "Сопоставление узлов..."));
+                        _logger.StartOperation("Сопоставление узлов и элементов");
+                        MapNodesAndElements(midasNodes, liraNodes, midasElements, liraElements);
+
+                        // АНАЛИЗ СОПОСТАВЛЕНИЯ
+                        int matchedNodesCount = midasNodes.Count(n => n.AppropriateLiraNode.Id != 0);
+                        int matchedElementsCount = midasElements.Count(e => e.AppropriateLiraElement.Id != 0);
+
+                        progress?.Report((40, $"Сопоставлено {matchedNodesCount} узлов и {matchedElementsCount} элементов"));
+
+                        _logger.Info($"Сопоставлено: {matchedNodesCount}/{midasNodes.Count} узлов " +
+                               $"({(double)matchedNodesCount / midasNodes.Count * 100:F1}%)");
+                        _logger.Info($"Сопоставлено: {matchedElementsCount}/{midasElements.Count} элементов " +
+                                   $"({(double)matchedElementsCount / midasElements.Count * 100:F1}%)");
+
+                        if (matchedNodesCount == 0)
+                        {
+                            throw new InvalidOperationException("Не удалось сопоставить ни один узел. " +
+                                                              "Проверьте координаты в файлах Excel.");
+                        }
+
+                        _logger.EndOperation("Сопоставление узлов и элементов");
+
+                        // Шаг 3: Расчет жесткостей (70%)
+                        progress?.Report((50, "Расчет жесткостей узлов..."));
+                        _logger.StartOperation("Расчет жесткостей узлов");
+                        plaques = RigidityCalculator.CalculateNodeRigidities(midasNodes, midasElements);
+                        progress?.Report((70, $"Рассчитано жесткостей для {plaques.Count} плит"));
+                        _logger.Info($"Рассчитано жесткостей для {plaques.Count} плит");
+                        _logger.EndOperation("Расчет жесткостей узлов");
+
+                        // Шаг 4: Запись данных в файл ЛИРА-САПР (100%)
+                        progress?.Report((80, "Запись данных в файл ЛИРА-САПР..."));
+                        _logger.StartOperation("Запись данных в файл ЛИРА-САПР");
+                        _writer.WriteNodeAndBeddingData(liraSaprFilePath, midasNodes, midasElements, plaques);
+                        progress?.Report((100, "Данные успешно записаны"));
+                        _logger.Info($"Данные успешно записаны в файл");
+                        _logger.EndOperation("Запись данных в файл ЛИРА-САПР");
+
+                        _logger.Info($"ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО");
+                        return true;
                     }
+                    catch (Exception ex)
+                    {
 
-                    _logger.EndOperation("Сопоставление узлов и элементов");
+                        _logger.Error($"Ошибка при обработке файлов", ex);
 
-                    // Шаг 3: Расчет жесткостей
-                    _logger.StartOperation("Расчет жесткостей узлов");
-                    plaques = RigidityCalculator.CalculateNodeRigidities(midasNodes, midasElements);
-                    _logger.Info($"Рассчитано жесткостей для {plaques.Count} плит");
-                    _logger.EndOperation("Расчет жесткостей узлов");
-
-                    // Шаг 4: Запись данных в файл ЛИРА-САПР
-                    _logger.StartOperation("Запись данных в файл ЛИРА-САПР");
-                    _writer.WriteNodeAndBeddingData(liraSaprFilePath, midasNodes, midasElements, plaques);
-                    _logger.Info($"Данные успешно записаны в файл");
-                    _logger.EndOperation("Запись данных в файл ЛИРА-САПР");
-
-                    _logger.Info($"ОБРАБОТКА ЗАВЕРШЕНА УСПЕШНО");
-                    return true;
+                        // Логируем дополнительную информацию для отладки
+                        if (midasNodes != null)
+                        {
+                            _logger.Debug($"midasNodes.Count = {midasNodes.Count}");
+                        }
+                        if (midasElements != null)
+                        {
+                            _logger.Debug($"midasElements.Count = {midasElements.Count}");
+                        }
+                        progress?.Report((0, $"Ошибка: {ex.Message}"));
+                        throw;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.Error($"Ошибка при обработке файлов", ex);
-
-                    // Логируем дополнительную информацию для отладки
-                    if (midasNodes != null)
-                    {
-                        _logger.Debug($"midasNodes.Count = {midasNodes.Count}");
-                    }
-                    if (midasElements != null)
-                    {
-                        _logger.Debug($"midasElements.Count = {midasElements.Count}");
-                    }
-
+                    progress?.Report((0, $"Критическая ошибка: {ex.Message}"));
                     throw new InvalidOperationException(
-                        $"Ошибка при обработке файлов. Excel: {excelFilePath}, ЛИРА: {liraSaprFilePath}", ex);
+                    $"Ошибка при обработке файлов. Excel: {excelFilePath}, ЛИРА: {liraSaprFilePath}", ex);
                 }
             });
         }
