@@ -47,7 +47,8 @@ namespace MidasLira
                         // Шаг 1: Чтение данных из Excel (20%)
                         progress?.Report((10, "Чтение данных из Excel..."));
                         _logger.StartOperation("Чтение данных из Excel");
-                        (midasNodes, liraNodes, midasElements, liraElements) = ExcelReader.ReadFromExcel(excelFilePath);
+                        var reader = new ExcelReader(_logger);
+                        (midasNodes, liraNodes, midasElements, liraElements) = reader.ReadFromExcel(excelFilePath);
                         progress?.Report((20, $"Прочитано {midasNodes.Count} узлов и {midasElements.Count} элементов"));
                         _logger.Info($"Прочитано: {midasNodes.Count} узлов MIDAS, {liraNodes.Count} узлов ЛИРА, " +
                                $"{midasElements.Count} элементов MIDAS, {liraElements.Count} элементов ЛИРА");

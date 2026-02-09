@@ -134,7 +134,7 @@
     </Window.Resources>
 
     <Grid Margin="20">
-        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Height="363">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Height="384">
 
             <!-- Excel -->
             <Label Content="Выберите файл Excel:" FontWeight="Bold"/>
