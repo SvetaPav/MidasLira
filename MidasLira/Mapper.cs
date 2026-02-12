@@ -19,61 +19,53 @@ namespace MidasLira
         /// Строит соответствие элементов MIDAS и ЛИРА-САПР по общим узлам.
         /// </summary>
 
-        private static Dictionary<int, MidasNodeInfo> CreateNodeDictionary(List<MidasNodeInfo> nodes)
+        public static void MapNodesAndElements(
+            List<MidasNodeInfo> midasNodes,
+            List<LiraNodeInfo> liraNodes,
+            List<MidasElementInfo> midasElements,
+            List<LiraElementInfo> liraElements)
         {
-            var dictionary = new Dictionary<int, MidasNodeInfo>(nodes.Count);
-
-            foreach (var node in nodes)
+            // 1. Сопоставление узлов по координатам 
+            foreach (var midasNode in midasNodes)
             {
-                if (!dictionary.TryAdd(node.Id, node))
-                {
-                    // Обработка дубликатов ID
-                    Console.WriteLine($"Предупреждение: Дубликат ID узла: {node.Id}");
-                }
-            }
-
-            return dictionary;
-        }
-
-        public static void MapNodesAndElements(List<MidasNodeInfo> midasNodes, List<LiraNodeInfo> liraNodes, List<MidasElementInfo> midasElements, List<LiraElementInfo> liraElements)
-        {
-            // 1. Сопоставляем узлы 
-            for (int i = 0; i < midasNodes.Count; i++)
-            {
-                var midasNode = midasNodes[i];
                 var matchingLiraNode = liraNodes.FirstOrDefault(l =>
-                     Math.Abs(l.X - midasNode.X) < COORDINATE_EPSILON &&
-                     Math.Abs(l.Y - midasNode.Y) < COORDINATE_EPSILON &&
-                     Math.Abs(l.Z - midasNode.Z) < COORDINATE_EPSILON);
+                    Math.Abs(l.X - midasNode.X) < COORDINATE_EPSILON &&
+                    Math.Abs(l.Y - midasNode.Y) < COORDINATE_EPSILON &&
+                    Math.Abs(l.Z - midasNode.Z) < COORDINATE_EPSILON);
 
-                if (!matchingLiraNode.IsEmpty) // Исправленная проверка
+                if (!matchingLiraNode.IsEmpty)
                 {
                     midasNode.AppropriateLiraNode = matchingLiraNode;
                 }
             }
 
-            // 2. Сопоставляем элементы на основе сопоставленных узлов
-            for (int i = 0; i < midasElements.Count; i++)
-            {
-                var midasElement = midasElements[i];
-                // Получить сопоставленные узлы для текущего элемента Midas
-                var matchedNodeIds = midasElement.NodeIds
-                                    .Select(midNodeId =>
-                                    {
-                                        var correspondingNode = midasNodes.FirstOrDefault(md => md.Id == midNodeId);
-                                        if (correspondingNode != null && correspondingNode.AppropriateLiraNode.Equals(default))
-                                            return correspondingNode.AppropriateLiraNode.Id;
-                                        return 0;
-                                    })
-                                    .Where(id => id != 0)
-                                    .OrderBy(id => id)
-                                    .ToList();
+            // 2. СОЗДАЁМ СЛОВАРЬ УЗЛОВ MIDAS ДЛЯ БЫСТРОГО ДОСТУПА
+            var midasNodeDict = midasNodes.ToDictionary(n => n.Id);
 
-                // Ищем элемент ЛИРА-САПР, чьи узлы совпадают с сопоставленными узлами
+            // 3. Сопоставление элементов
+            foreach (var midasElement in midasElements)
+            {
+                // Собираем ID узлов ЛИРА, соответствующих узлам MIDAS данного элемента
+                var matchedNodeIds = midasElement.NodeIds
+                    .Select(nodeId =>
+                    {
+                        // Поиск по словарю – O(1)
+                        if (midasNodeDict.TryGetValue(nodeId, out var midasNode) &&
+                            !midasNode.AppropriateLiraNode.IsEmpty) // ИСПРАВЛЕНО УСЛОВИЕ
+                        {
+                            return midasNode.AppropriateLiraNode.Id;
+                        }
+                        return 0;
+                    })
+                    .Where(id => id != 0)
+                    .OrderBy(id => id)
+                    .ToList();
+
+                // Ищем элемент ЛИРА с точно таким же набором узлов
                 var matchingLiraElement = liraElements.FirstOrDefault(le =>
                     le.NodeIds.OrderBy(id => id).SequenceEqual(matchedNodeIds));
 
-                if (!matchingLiraElement.Equals(default(LiraElementInfo))) // Исправленная проверка // Проверяем, что элемент реально найден
+                if (!matchingLiraElement.IsEmpty)
                 {
                     midasElement.AppropriateLiraElement = matchingLiraElement;
                 }
