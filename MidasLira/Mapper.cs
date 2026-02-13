@@ -11,12 +11,12 @@ using System.Xml.Linq;
 
 namespace MidasLira
 {
-    public static class Mapper  //GetNodesForElement - посмотреть об использовании логгера или сообщения об ошибке не через консоль
+    public static class Mapper  //GetNodesForElement - ГЇГ®Г±Г¬Г®ГІГ°ГҐГІГј Г®ГЎ ГЁГ±ГЇГ®Г«ГјГ§Г®ГўГ Г­ГЁГЁ Г«Г®ГЈГЈГҐГ°Г  ГЁГ«ГЁ Г±Г®Г®ГЎГ№ГҐГ­ГЁГї Г®ГЎ Г®ГёГЁГЎГЄГҐ Г­ГҐ Г·ГҐГ°ГҐГ§ ГЄГ®Г­Г±Г®Г«Гј
     {
-        private const double COORDINATE_EPSILON = 0.001; // Погрешность для сравнения координат
+        private const double COORDINATE_EPSILON = 0.001; // ГЏГ®ГЈГ°ГҐГёГ­Г®Г±ГІГј Г¤Г«Гї Г±Г°Г ГўГ­ГҐГ­ГЁГї ГЄГ®Г®Г°Г¤ГЁГ­Г ГІ
 
         /// <summary>
-        /// Строит соответствие элементов MIDAS и ЛИРА-САПР по общим узлам.
+        /// Г‘ГІГ°Г®ГЁГІ Г±Г®Г®ГІГўГҐГІГ±ГІГўГЁГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў MIDAS ГЁ Г‹Г€ГђГЂ-Г‘ГЂГЏГђ ГЇГ® Г®ГЎГ№ГЁГ¬ ГіГ§Г«Г Г¬.
         /// </summary>
 
         public static void MapNodesAndElements(
@@ -25,7 +25,7 @@ namespace MidasLira
             List<MidasElementInfo> midasElements,
             List<LiraElementInfo> liraElements)
         {
-            // 1. Сопоставление узлов по координатам 
+            // 1. Г‘Г®ГЇГ®Г±ГІГ ГўГ«ГҐГ­ГЁГҐ ГіГ§Г«Г®Гў ГЇГ® ГЄГ®Г®Г°Г¤ГЁГ­Г ГІГ Г¬ 
             foreach (var midasNode in midasNodes)
             {
                 var matchingLiraNode = liraNodes.FirstOrDefault(l =>
@@ -39,19 +39,19 @@ namespace MidasLira
                 }
             }
 
-            // 2. СОЗДАЁМ СЛОВАРЬ УЗЛОВ MIDAS ДЛЯ БЫСТРОГО ДОСТУПА
+            // 2. Г‘ГЋГ‡Г„ГЂВЁГЊ Г‘Г‹ГЋГ‚ГЂГђГњ Г“Г‡Г‹ГЋГ‚ MIDAS Г„Г‹Гџ ГЃГ›Г‘Г’ГђГЋГѓГЋ Г„ГЋГ‘Г’Г“ГЏГЂ
             var midasNodeDict = midasNodes.ToDictionary(n => n.Id);
 
-            // 3. Сопоставление элементов
+            // 3. Г‘Г®ГЇГ®Г±ГІГ ГўГ«ГҐГ­ГЁГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў
             foreach (var midasElement in midasElements)
             {
-                // Собираем ID узлов ЛИРА, соответствующих узлам MIDAS данного элемента
+                // Г‘Г®ГЎГЁГ°Г ГҐГ¬ ID ГіГ§Г«Г®Гў Г‹Г€ГђГЂ, Г±Г®Г®ГІГўГҐГІГ±ГІГўГіГѕГ№ГЁГµ ГіГ§Г«Г Г¬ MIDAS Г¤Г Г­Г­Г®ГЈГ® ГЅГ«ГҐГ¬ГҐГ­ГІГ 
                 var matchedNodeIds = midasElement.NodeIds
                     .Select(nodeId =>
                     {
-                        // Поиск по словарю – O(1)
+                        // ГЏГ®ГЁГ±ГЄ ГЇГ® Г±Г«Г®ГўГ Г°Гѕ вЂ“ O(1)
                         if (midasNodeDict.TryGetValue(nodeId, out var midasNode) &&
-                            !midasNode.AppropriateLiraNode.IsEmpty) // ИСПРАВЛЕНО УСЛОВИЕ
+                            !midasNode.AppropriateLiraNode.IsEmpty) // Г€Г‘ГЏГђГЂГ‚Г‹Г…ГЌГЋ Г“Г‘Г‹ГЋГ‚Г€Г…
                         {
                             return midasNode.AppropriateLiraNode.Id;
                         }
@@ -61,7 +61,7 @@ namespace MidasLira
                     .OrderBy(id => id)
                     .ToList();
 
-                // Ищем элемент ЛИРА с точно таким же набором узлов
+                // Г€Г№ГҐГ¬ ГЅГ«ГҐГ¬ГҐГ­ГІ Г‹Г€ГђГЂ Г± ГІГ®Г·Г­Г® ГІГ ГЄГЁГ¬ Г¦ГҐ Г­Г ГЎГ®Г°Г®Г¬ ГіГ§Г«Г®Гў
                 var matchingLiraElement = liraElements.FirstOrDefault(le =>
                     le.NodeIds.OrderBy(id => id).SequenceEqual(matchedNodeIds));
 
@@ -74,7 +74,7 @@ namespace MidasLira
 
 
         /// <summary>
-        /// Метод кластеризации элементов по плитам с использованием словаря узлов
+        /// ГЊГҐГІГ®Г¤ ГЄГ«Г Г±ГІГҐГ°ГЁГ§Г Г¶ГЁГЁ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў ГЇГ® ГЇГ«ГЁГІГ Г¬ Г± ГЁГ±ГЇГ®Г«ГјГ§Г®ГўГ Г­ГЁГҐГ¬ Г±Г«Г®ГўГ Г°Гї ГіГ§Г«Г®Гў
         /// </summary>
         /// <param name="elements"></param>
         /// <param name="nodes"></param>
@@ -83,15 +83,15 @@ namespace MidasLira
         {
             var plaques = new List<Plaque>();
 
-            // Набор элементов, которые уже учтены в плитах
+            // ГЌГ ГЎГ®Г° ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў, ГЄГ®ГІГ®Г°Г»ГҐ ГіГ¦ГҐ ГіГ·ГІГҐГ­Г» Гў ГЇГ«ГЁГІГ Гµ
             var processedElements = new HashSet<int>();
 
             foreach (var element in elements)
             {
                 if (processedElements.Contains(element.Id))
-                    continue; // Элемент уже включен в кластер
+                    continue; // ГќГ«ГҐГ¬ГҐГ­ГІ ГіГ¦ГҐ ГўГЄГ«ГѕГ·ГҐГ­ Гў ГЄГ«Г Г±ГІГҐГ°
 
-                // Создаем новую плиту
+                // Г‘Г®Г§Г¤Г ГҐГ¬ Г­Г®ГўГіГѕ ГЇГ«ГЁГІГі
                 var plaque = new Plaque();
                 plaque.Elements.Add(element);
                 plaque.Nodes.AddRange(GetNodesForElement(element, nodeDictionary));
@@ -100,18 +100,18 @@ namespace MidasLira
                 queue.Enqueue(element);
                 processedElements.Add(element.Id);
 
-                // DFS-обход смежных элементов
-                while (queue.Count > 0) //графовый поиск, где элементы — вершины графа, а общие узлы — рёбра.
+                // DFS-Г®ГЎГµГ®Г¤ Г±Г¬ГҐГ¦Г­Г»Гµ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў
+                while (queue.Count > 0) //ГЈГ°Г ГґГ®ГўГ»Г© ГЇГ®ГЁГ±ГЄ, ГЈГ¤ГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ» вЂ” ГўГҐГ°ГёГЁГ­Г» ГЈГ°Г ГґГ , Г  Г®ГЎГ№ГЁГҐ ГіГ§Г«Г» вЂ” Г°ВёГЎГ°Г .
                 {
                     var currentElement = queue.Dequeue();
 
-                    // Просматриваем все элементы
+                    // ГЏГ°Г®Г±Г¬Г ГІГ°ГЁГўГ ГҐГ¬ ГўГ±ГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ»
                     foreach (var otherElement in elements)
                     {
                         if (processedElements.Contains(otherElement.Id))
-                            continue; // Элемент уже учтен
+                            continue; // ГќГ«ГҐГ¬ГҐГ­ГІ ГіГ¦ГҐ ГіГ·ГІГҐГ­
 
-                        // Если элементы имеют хотя бы один общий узел
+                        // Г…Г±Г«ГЁ ГЅГ«ГҐГ¬ГҐГ­ГІГ» ГЁГ¬ГҐГѕГІ ГµГ®ГІГї ГЎГ» Г®Г¤ГЁГ­ Г®ГЎГ№ГЁГ© ГіГ§ГҐГ«
                         if (otherElement.NodeIds.Intersect(currentElement.NodeIds).Any())
                         {
                             plaque.Elements.Add(otherElement);
@@ -121,12 +121,12 @@ namespace MidasLira
                         }
                     }
                 }
-                plaque.Nodes = [.. plaque.Nodes.Distinct()];  // сокращение plaque.Nodes = plaque.Nodes.Distinct().ToList();
+                plaque.Nodes = [.. plaque.Nodes.Distinct()];  // Г±Г®ГЄГ°Г Г№ГҐГ­ГЁГҐ plaque.Nodes = plaque.Nodes.Distinct().ToList();
 
-                // Присваиваем плите уникальный номер
+                // ГЏГ°ГЁГ±ГўГ ГЁГўГ ГҐГ¬ ГЇГ«ГЁГІГҐ ГіГ­ГЁГЄГ Г«ГјГ­Г»Г© Г­Г®Г¬ГҐГ°
                 plaque.Id = plaques.Count + 1;
 
-                // Заполняем поле PlankId в элементах и узлах
+                // Г‡Г ГЇГ®Г«Г­ГїГҐГ¬ ГЇГ®Г«ГҐ PlankId Гў ГЅГ«ГҐГ¬ГҐГ­ГІГ Гµ ГЁ ГіГ§Г«Г Гµ
                 for (int i = 0; i < plaque.Elements.Count; i++)
                 {
                     plaque.Elements[i].Plaque = plaque;
@@ -142,7 +142,7 @@ namespace MidasLira
             return plaques;
         }
 
-        // Вспомогательный метод для получения узлов элемента
+        // Г‚Г±ГЇГ®Г¬Г®ГЈГ ГІГҐГ«ГјГ­Г»Г© Г¬ГҐГІГ®Г¤ Г¤Г«Гї ГЇГ®Г«ГіГ·ГҐГ­ГЁГї ГіГ§Г«Г®Гў ГЅГ«ГҐГ¬ГҐГ­ГІГ 
         private static List<MidasNodeInfo> GetNodesForElement(MidasElementInfo element, Dictionary<int, MidasNodeInfo> nodeDictionary)
         {
             var foundNodes = new List<MidasNodeInfo>(element.NodeIds.Length);
@@ -155,33 +155,33 @@ namespace MidasLira
                 }
                 else
                 {
-                    AppLogger.Warning($"Узел с ID={nodeId} не найден для элемента ID={element.Id}");
-                    // отладочная информация
-                    Console.WriteLine($"Предупреждение: Узел с ID={nodeId} не найден для элемента ID={element.Id}");
+                    AppLogger.Warning($"Г“Г§ГҐГ« Г± ID={nodeId} Г­ГҐ Г­Г Г©Г¤ГҐГ­ Г¤Г«Гї ГЅГ«ГҐГ¬ГҐГ­ГІГ  ID={element.Id}");
+                    // Г®ГІГ«Г Г¤Г®Г·Г­Г Гї ГЁГ­ГґГ®Г°Г¬Г Г¶ГЁГї
+                    Console.WriteLine($"ГЏГ°ГҐГ¤ГіГЇГ°ГҐГ¦Г¤ГҐГ­ГЁГҐ: Г“Г§ГҐГ« Г± ID={nodeId} Г­ГҐ Г­Г Г©Г¤ГҐГ­ Г¤Г«Гї ГЅГ«ГҐГ¬ГҐГ­ГІГ  ID={element.Id}");
                 }
             }
 
             return foundNodes;
         }
-        //Как работает метод:
+        //ГЉГ ГЄ Г°Г ГЎГ®ГІГ ГҐГІ Г¬ГҐГІГ®Г¤:
         //Initialization:  
-        //Создаются два главных объекта:
-        //plaques: список, в который будут собираться готовые плиты.
-        //processedElements: хешсет, в котором хранятся идентификаторы элементов, уже вошедших в какую-либо плиту.
-        //Outer Loop:Метод проходит по каждому элементу из списка elements. Если элемент уже включён в плиту (проверяется по хешсету processedElements), он пропускается.
+        //Г‘Г®Г§Г¤Г ГѕГІГ±Гї Г¤ГўГ  ГЈГ«Г ГўГ­Г»Гµ Г®ГЎГєГҐГЄГІГ :
+        //plaques: Г±ГЇГЁГ±Г®ГЄ, Гў ГЄГ®ГІГ®Г°Г»Г© ГЎГіГ¤ГіГІ Г±Г®ГЎГЁГ°Г ГІГјГ±Гї ГЈГ®ГІГ®ГўГ»ГҐ ГЇГ«ГЁГІГ».
+        //processedElements: ГµГҐГёГ±ГҐГІ, Гў ГЄГ®ГІГ®Г°Г®Г¬ ГµГ°Г Г­ГїГІГ±Гї ГЁГ¤ГҐГ­ГІГЁГґГЁГЄГ ГІГ®Г°Г» ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў, ГіГ¦ГҐ ГўГ®ГёГҐГ¤ГёГЁГµ Гў ГЄГ ГЄГіГѕ-Г«ГЁГЎГ® ГЇГ«ГЁГІГі.
+        //Outer Loop:ГЊГҐГІГ®Г¤ ГЇГ°Г®ГµГ®Г¤ГЁГІ ГЇГ® ГЄГ Г¦Г¤Г®Г¬Гі ГЅГ«ГҐГ¬ГҐГ­ГІГі ГЁГ§ Г±ГЇГЁГ±ГЄГ  elements. Г…Г±Г«ГЁ ГЅГ«ГҐГ¬ГҐГ­ГІ ГіГ¦ГҐ ГўГЄГ«ГѕГ·ВёГ­ Гў ГЇГ«ГЁГІГі (ГЇГ°Г®ГўГҐГ°ГїГҐГІГ±Гї ГЇГ® ГµГҐГёГ±ГҐГІГі processedElements), Г®Г­ ГЇГ°Г®ГЇГіГ±ГЄГ ГҐГІГ±Гї.
         //Creating a plaques:  
-        //Для каждого нового элемента создаётся новая плита (список элементов), и этот элемент добавляется в очередь (queue).
-        //Затем элемент добавляется в хешсет processedElements, чтобы отметить, что он уже учтен.
+        //Г„Г«Гї ГЄГ Г¦Г¤Г®ГЈГ® Г­Г®ГўГ®ГЈГ® ГЅГ«ГҐГ¬ГҐГ­ГІГ  Г±Г®Г§Г¤Г ВёГІГ±Гї Г­Г®ГўГ Гї ГЇГ«ГЁГІГ  (Г±ГЇГЁГ±Г®ГЄ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў), ГЁ ГЅГІГ®ГІ ГЅГ«ГҐГ¬ГҐГ­ГІ Г¤Г®ГЎГ ГўГ«ГїГҐГІГ±Гї Гў Г®Г·ГҐГ°ГҐГ¤Гј (queue).
+        //Г‡Г ГІГҐГ¬ ГЅГ«ГҐГ¬ГҐГ­ГІ Г¤Г®ГЎГ ГўГ«ГїГҐГІГ±Гї Гў ГµГҐГёГ±ГҐГІ processedElements, Г·ГІГ®ГЎГ» Г®ГІГ¬ГҐГІГЁГІГј, Г·ГІГ® Г®Г­ ГіГ¦ГҐ ГіГ·ГІГҐГ­.
         //DFS Traversal:  
-        //Используя очередь (queue), мы проходим по всем связанным элементам. Это своего рода графовый поиск, где элементы — вершины графа, а общие узлы — рёбра.
-        //Пока очередь не пуста, мы достаём элемент из очереди и проверяем все остальные элементы в списке.
-        //Если найден элемент, имеющий хотя бы один общий узел с текущим элементом, он добавляется в текущую плиту, в очередь и отмечается как обработанный.
+        //Г€Г±ГЇГ®Г«ГјГ§ГіГї Г®Г·ГҐГ°ГҐГ¤Гј (queue), Г¬Г» ГЇГ°Г®ГµГ®Г¤ГЁГ¬ ГЇГ® ГўГ±ГҐГ¬ Г±ГўГїГ§Г Г­Г­Г»Г¬ ГЅГ«ГҐГ¬ГҐГ­ГІГ Г¬. ГќГІГ® Г±ГўГ®ГҐГЈГ® Г°Г®Г¤Г  ГЈГ°Г ГґГ®ГўГ»Г© ГЇГ®ГЁГ±ГЄ, ГЈГ¤ГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ» вЂ” ГўГҐГ°ГёГЁГ­Г» ГЈГ°Г ГґГ , Г  Г®ГЎГ№ГЁГҐ ГіГ§Г«Г» вЂ” Г°ВёГЎГ°Г .
+        //ГЏГ®ГЄГ  Г®Г·ГҐГ°ГҐГ¤Гј Г­ГҐ ГЇГіГ±ГІГ , Г¬Г» Г¤Г®Г±ГІГ ВёГ¬ ГЅГ«ГҐГ¬ГҐГ­ГІ ГЁГ§ Г®Г·ГҐГ°ГҐГ¤ГЁ ГЁ ГЇГ°Г®ГўГҐГ°ГїГҐГ¬ ГўГ±ГҐ Г®Г±ГІГ Г«ГјГ­Г»ГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ» Гў Г±ГЇГЁГ±ГЄГҐ.
+        //Г…Г±Г«ГЁ Г­Г Г©Г¤ГҐГ­ ГЅГ«ГҐГ¬ГҐГ­ГІ, ГЁГ¬ГҐГѕГ№ГЁГ© ГµГ®ГІГї ГЎГ» Г®Г¤ГЁГ­ Г®ГЎГ№ГЁГ© ГіГ§ГҐГ« Г± ГІГҐГЄГіГ№ГЁГ¬ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Г¬, Г®Г­ Г¤Г®ГЎГ ГўГ«ГїГҐГІГ±Гї Гў ГІГҐГЄГіГ№ГіГѕ ГЇГ«ГЁГІГі, Гў Г®Г·ГҐГ°ГҐГ¤Гј ГЁ Г®ГІГ¬ГҐГ·Г ГҐГІГ±Гї ГЄГ ГЄ Г®ГЎГ°Г ГЎГ®ГІГ Г­Г­Г»Г©.
         //Adding Clusters:  
-        //После того как найдены все связанные элементы, текущая плита добавляется в список plaques.
-        // Repeat:Процедура повторяется для оставшихся необработанных элементов.
+        //ГЏГ®Г±Г«ГҐ ГІГ®ГЈГ® ГЄГ ГЄ Г­Г Г©Г¤ГҐГ­Г» ГўГ±ГҐ Г±ГўГїГ§Г Г­Г­Г»ГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ», ГІГҐГЄГіГ№Г Гї ГЇГ«ГЁГІГ  Г¤Г®ГЎГ ГўГ«ГїГҐГІГ±Гї Гў Г±ГЇГЁГ±Г®ГЄ plaques.
+        // Repeat:ГЏГ°Г®Г¶ГҐГ¤ГіГ°Г  ГЇГ®ГўГІГ®Г°ГїГҐГІГ±Гї Г¤Г«Гї Г®Г±ГІГ ГўГёГЁГµГ±Гї Г­ГҐГ®ГЎГ°Г ГЎГ®ГІГ Г­Г­Г»Гµ ГЅГ«ГҐГ¬ГҐГ­ГІГ®Гў.
 
 
-        // Вспомогательные структуры
+        // Г‚Г±ГЇГ®Г¬Г®ГЈГ ГІГҐГ«ГјГ­Г»ГҐ Г±ГІГ°ГіГЄГІГіГ°Г»
         public class MidasNodeInfo
         {
             public int Id { get; }
@@ -190,9 +190,9 @@ namespace MidasLira
             public double Z { get; }
             public double NodeDisplacement { get; }
             public List<MidasElementInfo> Elements { get; }
-            public LiraNodeInfo AppropriateLiraNode { get; set; } = LiraNodeInfo.Empty; // соответствующий узел в ЛИРА-САПР, используем Empty
-            public Plaque Plaque { get; set; } // Номер плиты, к которой принадлежит узел
-            public int RigidityNumber { get; set; } // Номер жесткости для записи в файл
+            public LiraNodeInfo AppropriateLiraNode { get; set; } = LiraNodeInfo.Empty; // Г±Г®Г®ГІГўГҐГІГ±ГІГўГіГѕГ№ГЁГ© ГіГ§ГҐГ« Гў Г‹Г€ГђГЂ-Г‘ГЂГЏГђ, ГЁГ±ГЇГ®Г«ГјГ§ГіГҐГ¬ Empty
+            public Plaque Plaque { get; set; } // ГЌГ®Г¬ГҐГ° ГЇГ«ГЁГІГ», ГЄ ГЄГ®ГІГ®Г°Г®Г© ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦ГЁГІ ГіГ§ГҐГ«
+            public int RigidityNumber { get; set; } // ГЌГ®Г¬ГҐГ° Г¦ГҐГ±ГІГЄГ®Г±ГІГЁ Г¤Г«Гї Г§Г ГЇГЁГ±ГЁ Гў ГґГ Г©Г«
 
             public MidasNodeInfo(int id, double x, double y, double z, double nodeDisplacement, List<MidasElementInfo>? elements = null)
             {
@@ -201,21 +201,21 @@ namespace MidasLira
                 Y = y;
                 Z = z;
                 NodeDisplacement = nodeDisplacement;
-                Elements = elements ?? []; // Используем новый синтаксис
-                AppropriateLiraNode = LiraNodeInfo.Empty; // изначально не знаем соответствующий узел в ЛИРА-САПР
+                Elements = elements ?? []; // Г€Г±ГЇГ®Г«ГјГ§ГіГҐГ¬ Г­Г®ГўГ»Г© Г±ГЁГ­ГІГ ГЄГ±ГЁГ±
+                AppropriateLiraNode = LiraNodeInfo.Empty; // ГЁГ§Г­Г Г·Г Г«ГјГ­Г® Г­ГҐ Г§Г­Г ГҐГ¬ Г±Г®Г®ГІГўГҐГІГ±ГІГўГіГѕГ№ГЁГ© ГіГ§ГҐГ« Гў Г‹Г€ГђГЂ-Г‘ГЂГЏГђ
                 Plaque = new Plaque();
-                RigidityNumber = 0; // Изначально не задан
+                RigidityNumber = 0; // Г€Г§Г­Г Г·Г Г«ГјГ­Г® Г­ГҐ Г§Г Г¤Г Г­
             }
         }
 
         public class MidasElementInfo
         {
             public int Id { get; }
-            public int[] NodeIds { get; } // Узлы, принадлежащие элементу
-            public double Stress { get; set; } // Напряжение в элементе
-            public double Displacement { get; } // Перемещение элемента
-            public double BeddingCoefficient { get; set; } // Коэффициент постели (C1)
-            public int PlankId { get; set; } // Номер плиты, к которой принадлежит элемент
+            public int[] NodeIds { get; } // Г“Г§Г«Г», ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦Г Г№ГЁГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГі
+            public double Stress { get; set; } // ГЌГ ГЇГ°ГїГ¦ГҐГ­ГЁГҐ Гў ГЅГ«ГҐГ¬ГҐГ­ГІГҐ
+            public double Displacement { get; } // ГЏГҐГ°ГҐГ¬ГҐГ№ГҐГ­ГЁГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГ 
+            public double BeddingCoefficient { get; set; } // ГЉГ®ГЅГґГґГЁГ¶ГЁГҐГ­ГІ ГЇГ®Г±ГІГҐГ«ГЁ (C1)
+            public int PlankId { get; set; } // ГЌГ®Г¬ГҐГ° ГЇГ«ГЁГІГ», ГЄ ГЄГ®ГІГ®Г°Г®Г© ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦ГЁГІ ГЅГ«ГҐГ¬ГҐГ­ГІ
             public LiraElementInfo AppropriateLiraElement { get; set; }
             public Plaque Plaque { get; set; }
 
@@ -226,15 +226,15 @@ namespace MidasLira
                 Stress = stress;
                 Displacement = displacement;
                 BeddingCoefficient = beddingCoefficient;
-                PlankId = -1; // Изначально элемент не прикреплён ни к какой плите
-                AppropriateLiraElement = new LiraElementInfo(); // изначально не знаем соответствующий элемент в ЛИРА-САПР
+                PlankId = -1; // Г€Г§Г­Г Г·Г Г«ГјГ­Г® ГЅГ«ГҐГ¬ГҐГ­ГІ Г­ГҐ ГЇГ°ГЁГЄГ°ГҐГЇГ«ВёГ­ Г­ГЁ ГЄ ГЄГ ГЄГ®Г© ГЇГ«ГЁГІГҐ
+                AppropriateLiraElement = new LiraElementInfo(); // ГЁГ§Г­Г Г·Г Г«ГјГ­Г® Г­ГҐ Г§Г­Г ГҐГ¬ Г±Г®Г®ГІГўГҐГІГ±ГІГўГіГѕГ№ГЁГ© ГЅГ«ГҐГ¬ГҐГ­ГІ Гў Г‹Г€ГђГЂ-Г‘ГЂГЏГђ
                 Plaque = new Plaque();
             }
         }
 
         public readonly struct LiraNodeInfo: IEquatable<LiraNodeInfo>
         {
-            private const double Epsilon = 1e-6;  // Допуск 0.001 мм
+            private const double Epsilon = 1e-6;  // Г„Г®ГЇГіГ±ГЄ 0.001 Г¬Г¬
             public int Id { get; }
             public double X { get; }
             public double Y { get; }
@@ -250,13 +250,13 @@ namespace MidasLira
                 Elements = elements ?? [];
             }
 
-            // Cтатическое свойство для "пустого" значения
+            // CГІГ ГІГЁГ·ГҐГ±ГЄГ®ГҐ Г±ГўГ®Г©Г±ГІГўГ® Г¤Г«Гї "ГЇГіГ±ГІГ®ГЈГ®" Г§Г­Г Г·ГҐГ­ГЁГї
             public static LiraNodeInfo Empty => new(0, 0, 0, 0, []);
 
-            // Метод для проверки на "пустоту"
+            // ГЊГҐГІГ®Г¤ Г¤Г«Гї ГЇГ°Г®ГўГҐГ°ГЄГЁ Г­Г  "ГЇГіГ±ГІГ®ГІГі"
             public bool IsEmpty => Id == 0;
 
-            // Реализация IEquatable для избежания боксинга
+            // ГђГҐГ Г«ГЁГ§Г Г¶ГЁГї IEquatable Г¤Г«Гї ГЁГ§ГЎГҐГ¦Г Г­ГЁГї ГЎГ®ГЄГ±ГЁГ­ГЈГ 
             public bool Equals (LiraNodeInfo other)
             {
                 return Id == other.Id && 
@@ -265,16 +265,16 @@ namespace MidasLira
                     Math.Abs (Z- other.Z) < Epsilon;
             }
 
-            // Переопределяем Equals для корректного сравнения
+            // ГЏГҐГ°ГҐГ®ГЇГ°ГҐГ¤ГҐГ«ГїГҐГ¬ Equals Г¤Г«Гї ГЄГ®Г°Г°ГҐГЄГІГ­Г®ГЈГ® Г±Г°Г ГўГ­ГҐГ­ГЁГї
             public override bool Equals(object? obj)
             {
                 return obj is LiraNodeInfo other && Equals(other);
             }
 
-            // GetHashCode должен быть согласован с Equals
+            // GetHashCode Г¤Г®Г«Г¦ГҐГ­ ГЎГ»ГІГј Г±Г®ГЈГ«Г Г±Г®ГўГ Г­ Г± Equals
             public override int GetHashCode()
             {
-                // Округляем координаты для хэш-кода
+                // ГЋГЄГ°ГіГЈГ«ГїГҐГ¬ ГЄГ®Г®Г°Г¤ГЁГ­Г ГІГ» Г¤Г«Гї ГµГЅГё-ГЄГ®Г¤Г 
                 int xHash = (int)(X / Epsilon);
                 int yHash = (int)(Y / Epsilon);
                 int zHash = (int)(Z / Epsilon);
@@ -282,7 +282,7 @@ namespace MidasLira
                 return HashCode.Combine(Id, xHash, yHash, zHash);
             }
 
-            // Перегрузка операторов == и !=
+            // ГЏГҐГ°ГҐГЈГ°ГіГ§ГЄГ  Г®ГЇГҐГ°Г ГІГ®Г°Г®Гў == ГЁ !=
             public static bool operator ==(LiraNodeInfo left, LiraNodeInfo right)
             {
                 return left.Equals(right);
@@ -297,7 +297,7 @@ namespace MidasLira
         public readonly struct LiraElementInfo
         {
             public int Id { get; }
-            public int[] NodeIds { get; } // Узлы, принадлежащие элементу
+            public int[] NodeIds { get; } // Г“Г§Г«Г», ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦Г Г№ГЁГҐ ГЅГ«ГҐГ¬ГҐГ­ГІГі
 
             public LiraElementInfo(int id, int[] nodeIds)
             {
@@ -311,9 +311,9 @@ namespace MidasLira
         public class Plaque
         {
             public int Id { get; set; } = 0;
-            public List<MidasElementInfo> Elements { get; set; } = []; // Элементы, принадлежащие плите
-            public List<MidasNodeInfo> Nodes { get; set; } = []; // Узлы, принадлежащие плите
-            public double RigidNodes { get; set; } = 0; // жесткоcть для узлов, принадлежащих этой плите
+            public List<MidasElementInfo> Elements { get; set; } = []; // ГќГ«ГҐГ¬ГҐГ­ГІГ», ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦Г Г№ГЁГҐ ГЇГ«ГЁГІГҐ
+            public List<MidasNodeInfo> Nodes { get; set; } = []; // Г“Г§Г«Г», ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦Г Г№ГЁГҐ ГЇГ«ГЁГІГҐ
+            public double RigidNodes { get; set; } = 0; // Г¦ГҐГ±ГІГЄГ®cГІГј Г¤Г«Гї ГіГ§Г«Г®Гў, ГЇГ°ГЁГ­Г Г¤Г«ГҐГ¦Г Г№ГЁГµ ГЅГІГ®Г© ГЇГ«ГЁГІГҐ
 
         }
     }
